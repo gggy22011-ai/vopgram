@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200">
+  <defs>
+    <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#2AABEE;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#7B68EE;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#2AABEE;stop-opacity:1" />
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="shadow">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#2AABEE" flood-opacity="0.4"/>
+    </filter>
+  </defs>
+  
+  <!-- Background circle -->
+  <circle cx="100" cy="100" r="90" fill="url(#logoGrad)" filter="url(#shadow)"/>
+  
+  <!-- Inner highlight -->
+  <circle cx="100" cy="100" r="85" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="2"/>
+  
+  <!-- V letter -->
+  <path d="M55 60 L80 130 L100 90 L120 130 L145 60" 
+        fill="none" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)"/>
+  
+  <!-- Paper plane -->
+  <g transform="translate(100, 100) scale(0.6) translate(-12, -12)">
+    <path d="M22 2L11 13" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" fill="none" opacity="0.8"/>
+    <path d="M22 2L12 22L11 13L22 2Z" fill="rgba(255,255,255,0.3)" stroke="#FFFFFF" stroke-width="1.5"/>
+    <path d="M22 2L11 13L2 12L22 2Z" fill="rgba(255,255,255,0.5)" stroke="#FFFFFF" stroke-width="1.5"/>
+  </g>
+  
+  <!-- Sparkle effects -->
+  <circle cx="40" cy="45" r="3" fill="#FFFFFF" opacity="0.8">
+    <animate attributeName="opacity" values="0.8;0.3;0.8" dur="2s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="165" cy="55" r="2" fill="#FFFFFF" opacity="0.6">
+    <animate attributeName="opacity" values="0.6;0.2;0.6" dur="2.5s" repeatCount="indefinite"/>
+  </circle>
+  <circle cx="150" cy="150" r="2.5" fill="#FFFFFF" opacity="0.7">
+    <animate attributeName="opacity" values="0.7;0.2;0.7" dur="3s" repeatCount="indefinite"/>
+  </circle>
+</svg>

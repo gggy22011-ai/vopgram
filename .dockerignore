@@ -1,0 +1,9 @@
+node_modules
+vopgram.json
+vopgram.db
+vopgram.db-shm
+vopgram.db-wal
+.env
+uploads
+android
+.git

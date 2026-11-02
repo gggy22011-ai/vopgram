@@ -1,0 +1,12 @@
+{
+  "appId": "com.vopgram.app",
+  "appName": "Vopgram",
+  "webDir": "public",
+  "server": {
+    "url": "https://five-heads-check.loca.lt",
+    "cleartext": false
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}

@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400">
+  <rect width="400" height="400" fill="#17212B"/>
+  <g fill="none" stroke="#7B68EE" stroke-width="1.2" opacity="0.35">
+    <!-- cat -->
+    <path d="M60 80 L70 60 L80 80 L80 100 Q70 110 60 100 Z"/>
+    <circle cx="66" cy="88" r="2"/><circle cx="74" cy="88" r="2"/>
+    <!-- skull -->
+    <circle cx="200" cy="60" r="18"/>
+    <circle cx="193" cy="55" r="3" fill="#7B68EE"/><circle cx="207" cy="55" r="3" fill="#7B68EE"/>
+    <path d="M195 68 L205 68"/>
+    <!-- ghost -->
+    <path d="M320 70 Q320 50 340 50 Q360 50 360 70 L360 95 Q355 90 350 95 Q345 90 340 95 Q335 90 330 95 Q325 90 320 95 Z"/>
+    <circle cx="332" cy="70" r="2" fill="#7B68EE"/><circle cx="348" cy="70" r="2" fill="#7B68EE"/>
+    <!-- whale -->
+    <path d="M100 260 Q120 240 160 245 Q200 250 210 270 Q200 290 160 285 Q120 280 100 260 Z"/>
+    <circle cx="125" cy="262" r="2" fill="#7B68EE"/>
+    <path d="M210 270 L225 260 L225 280 Z"/>
+    <!-- cat2 -->
+    <path d="M300 260 L310 240 L320 260 L320 280 Q310 290 300 280 Z"/>
+    <circle cx="306" cy="268" r="2"/><circle cx="314" cy="268" r="2"/>
+    <!-- skull2 -->
+    <circle cx="60" cy="360" r="14"/>
+    <circle cx="55" cy="356" r="2.5" fill="#7B68EE"/><circle cx="65" cy="356" r="2.5" fill="#7B68EE"/>
+  </g>
+  <g fill="none" stroke="#A0A0A0" stroke-width="1" opacity="0.25">
+    <circle cx="140" cy="150" r="12"/>
+    <path d="M280 150 Q290 130 310 150 Q300 170 280 150 Z"/>
+    <path d="M40 320 L50 310 L60 320 L50 330 Z"/>
+    <circle cx="360" cy="360" r="10"/>
+  </g>
+</svg>

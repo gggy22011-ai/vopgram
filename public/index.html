@@ -1,0 +1,1654 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#1d1d1f">
+<title>Vopgram</title>
+<style>
+:root{
+  --bg:#0f0f10; --panel:#1d1d1f; --panel2:#2a2a2d; --line:rgba(255,255,255,.07);
+  --text:#fff; --muted:#8e8e93; --accent:#8774E1; --link:#8774E1;
+  --out:#5f51c4; --in:#242427; --danger:#ef5350; --nav:60px; --gold:#ffd54a;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overflow:hidden}
+body{background-color:#060608;background-image:var(--doodle);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;display:flex;justify-content:center}
+button,input,textarea{font:inherit;color:inherit;border:0;background:none;outline:none}
+button{cursor:pointer}
+#app{width:100%;max-width:480px;height:100%;height:100dvh;background:var(--bg);position:relative;overflow:hidden;display:flex;flex-direction:column}
+
+.bar{display:flex;align-items:center;gap:4px;padding:calc(8px + env(safe-area-inset-top)) 8px 8px;background:var(--panel);min-height:56px;flex-shrink:0}
+.bar h1{font-size:20px;font-weight:600;flex:1;padding-left:6px}
+.iconbtn{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;color:#c9c9ce;flex-shrink:0}
+.iconbtn:active{background:var(--panel2)}
+.iconbtn svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.search{flex:1;display:none;background:var(--bg);border-radius:20px;padding:9px 16px;font-size:15px}
+.search::placeholder{color:var(--muted)}
+.bar.searching h1{display:none}.bar.searching .search{display:block}
+
+.folders{display:flex;background:var(--panel);border-bottom:1px solid var(--line);flex-shrink:0;overflow-x:auto;scrollbar-width:none}
+.folders button{flex:1;padding:11px 14px 10px;color:var(--muted);font-size:14.5px;font-weight:600;position:relative;white-space:nowrap}
+.folders button.on{color:var(--accent)}
+.folders button.on::after{content:"";position:absolute;left:18%;right:18%;bottom:0;height:3px;border-radius:3px 3px 0 0;background:var(--accent)}
+
+#screens{flex:1;position:relative;overflow:hidden}
+.screen{position:absolute;inset:0;display:none;flex-direction:column}
+.screen.active{display:flex}
+.scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.av{border-radius:50%;display:grid;place-items:center;font-weight:600;color:#fff;flex-shrink:0;user-select:none}
+
+.row{display:flex;align-items:center;gap:12px;padding:9px 14px;cursor:pointer}
+.row:active{background:var(--panel2)}
+.row .mid{flex:1;min-width:0;border-bottom:1px solid var(--line);padding:2px 0 9px;margin-bottom:-9px}
+.row .l1,.row .l2{display:flex;justify-content:space-between;gap:8px;align-items:center}
+.row .nm{font-weight:600;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:4px}
+.row .tm{font-size:12px;color:var(--muted);flex-shrink:0}
+.row .pv{font-size:14.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px}
+.row .pv b{color:var(--link);font-weight:400}
+.badge{background:var(--accent);color:#fff;font-size:12px;font-weight:600;min-width:21px;height:21px;border-radius:11px;padding:0 6px;display:grid;place-items:center;margin-top:3px}
+.empty{color:var(--muted);text-align:center;padding:60px 30px;font-size:15px;line-height:1.5}
+.section{padding:14px 16px 6px;color:var(--link);font-size:14px;font-weight:600}
+.fab{position:absolute;right:16px;bottom:16px;width:56px;height:56px;border-radius:50%;background:var(--accent);display:grid;place-items:center;box-shadow:0 4px 14px rgba(0,0,0,.4);z-index:5}
+.fab svg{width:26px;height:26px;fill:none;stroke:#fff;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+nav{display:flex;background:var(--panel);border-top:1px solid var(--line);height:calc(var(--nav) + env(safe-area-inset-bottom));padding-bottom:env(safe-area-inset-bottom);flex-shrink:0}
+nav button{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--muted);font-size:11px;position:relative}
+nav button svg{width:25px;height:25px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+nav button.active{color:var(--accent)}
+nav .dot{position:absolute;top:5px;left:calc(50% + 6px);background:var(--accent);color:#fff;font-size:10px;font-weight:700;min-width:17px;height:17px;border-radius:9px;display:none;place-items:center;padding:0 4px}
+
+.overlay{position:absolute;inset:0;background:var(--bg);display:none;flex-direction:column;z-index:20;animation:slide .2s ease}
+.overlay.open{display:flex}
+#giftView{z-index:30}
+@keyframes slide{from{transform:translateX(40px);opacity:0}to{transform:none;opacity:1}}
+
+/* chat */
+.chat-head{display:flex;align-items:center;gap:10px;padding:calc(8px + env(safe-area-inset-top)) 8px 8px 4px;background:var(--panel);flex-shrink:0}
+.chat-head .who{flex:1;min-width:0}
+.chat-head .nm{font-weight:600;font-size:16.5px;display:flex;align-items:center;gap:5px}
+.chat-head .st{font-size:13px;color:var(--muted);margin-top:1px}
+.chat-head .st.typing{color:var(--link)}
+#msgs{flex:1;overflow-y:auto;padding:10px 10px 6px;display:flex;flex-direction:column;gap:3px;background-color:var(--bg);background-image:var(--doodle)}
+.day{align-self:center;background:rgba(29,29,31,.9);color:#c4c4c9;font-size:13px;padding:4px 12px;border-radius:14px;margin:8px 0}
+.msg{max-width:80%;padding:7px 10px 5px;border-radius:16px;font-size:15.5px;line-height:1.35;position:relative;overflow-wrap:anywhere;white-space:pre-wrap}
+.msg.in{align-self:flex-start;background:var(--in)}
+.msg.out{align-self:flex-end;background:var(--out)}
+.msg .meta{float:right;margin:6px 0 0 10px;font-size:11.5px;color:rgba(255,255,255,.5);display:flex;gap:3px;align-items:center;white-space:nowrap}
+.msg.out .meta{color:rgba(255,255,255,.7)}
+.msg.gift{padding:0;width:210px;overflow:hidden;white-space:normal;cursor:pointer}
+.msg.gift .gt{padding:8px 12px 2px;text-align:center;font-size:14px}
+.msg.gift .gs{text-align:center;font-size:12.5px;color:var(--gold);padding-bottom:2px}
+.msg.gift .meta{float:none;justify-content:flex-end;padding:0 10px 5px;margin:0}
+.composer{display:flex;align-items:flex-end;gap:2px;padding:6px 6px calc(6px + env(safe-area-inset-bottom));background:var(--panel);flex-shrink:0}
+.composer textarea{flex:1;resize:none;max-height:120px;padding:10px 4px;font-size:16px;line-height:1.3;height:42px}
+.composer textarea::placeholder{color:var(--muted)}
+.sendbtn{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;color:var(--accent);flex-shrink:0}
+.sendbtn svg{width:26px;height:26px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.sendbtn.send svg{fill:var(--accent);stroke:none}
+.emoji-panel{display:none;background:var(--panel);padding:8px;grid-template-columns:repeat(8,1fr);gap:2px;border-top:1px solid var(--line);max-height:190px;overflow-y:auto;flex-shrink:0}
+.emoji-panel.open{display:grid}
+.emoji-panel button{font-size:26px;padding:5px;border-radius:8px}
+
+/* settings (profile) */
+.pf-top{display:flex;flex-direction:column;align-items:center;padding:26px 20px 18px;position:relative;overflow:hidden}
+.pf-top>*{position:relative;z-index:1}
+.pf-top .pat{position:absolute;inset:0;z-index:0}
+.pf-name{margin-top:16px;display:flex;align-items:center;gap:6px;font-size:21px;font-weight:600;text-align:center}
+.pf-status{display:flex;align-items:center;gap:6px;color:#c9c9ce;margin-top:6px;font-size:14.5px}
+.scard{background:var(--panel);border-radius:20px;margin:10px 12px;padding:6px 0;overflow:hidden}
+.srow{display:flex;align-items:center;gap:16px;padding:9px 16px;cursor:pointer}
+.srow:active{background:var(--panel2)}
+.srow .sm{flex:1;min-width:0}
+.st1{font-size:16px;line-height:1.3;overflow-wrap:anywhere}
+.st2{font-size:13.5px;color:var(--muted);margin-top:2px}
+.sr{color:var(--muted);font-size:14.5px;display:flex;align-items:center;gap:4px;flex-shrink:0}
+.srow.danger .st1{color:var(--danger)}
+.si{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;flex-shrink:0}
+.si svg{width:20px;height:20px;fill:none;stroke:#fff;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.qr{width:26px;height:26px;fill:none;stroke:#c9c9ce;stroke-width:1.7}
+.switch{width:44px;height:26px;border-radius:13px;background:#3a3a3e;position:relative;transition:.2s;flex-shrink:0}
+.switch::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.2s}
+.switch.on{background:var(--accent)}.switch.on::after{left:21px}
+
+.pf-top.prem{background:linear-gradient(120deg,#3a2a7a,#1b4f7a,#5a2a7a,#7a2a6a);background-size:300% 300%;animation:pgrad 9s ease infinite}@keyframes pgrad{0%,100%{background-position:0 50%}50%{background-position:100% 50%}}
+/* gifts */
+.ghead{padding:16px 22px 6px;text-align:center;color:#c9c9ce;font-size:14.5px;line-height:1.45}
+.pills{display:flex;gap:8px;padding:10px 16px 4px}
+.pills button{padding:8px 18px;border-radius:18px;color:var(--muted);font-weight:600;font-size:14.5px}
+.pills button.on{background:var(--panel2);color:#fff}
+.ggrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:10px 14px 16px}
+.gtile{background:var(--panel);border-radius:18px;display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:14px 6px 12px;position:relative;overflow:hidden;cursor:pointer;min-height:132px;transition:transform .12s}
+.gtile:active{transform:scale(.96)}
+.gtile svg{display:block}
+.price{background:linear-gradient(90deg,#d29a24,#b97c14);color:#fff;border-radius:14px;padding:4px 12px;font-weight:700;font-size:14px;white-space:nowrap}
+.gtile.col{padding:0 0 10px;min-height:0}
+.gtile.col .nmc{font-size:12px;color:#c9c9ce;margin:6px 4px 6px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.gtile .own{font-size:12.5px;margin:6px 4px 0;text-align:center}
+.ribbon{position:absolute;top:11px;right:-26px;background:#4cc15f;color:#fff;font-size:9.5px;font-weight:700;padding:2px 28px;transform:rotate(45deg);z-index:2;text-transform:lowercase}
+.balance-bar{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--panel);border-top:1px solid var(--line)}
+.balance-bar b{color:var(--gold)}
+.pill{background:var(--accent);color:#fff;border-radius:16px;padding:7px 14px;font-size:14px;font-weight:600}
+
+/* 3D */
+.m3d{perspective:700px;display:grid;place-items:center;margin:0 auto;flex-shrink:0}
+.m3d-in{position:relative;width:100%;height:100%;transform-style:preserve-3d;animation:swing 5.5s ease-in-out infinite}
+.m3d-in span{position:absolute;inset:0;display:grid;place-items:center;line-height:0}
+@keyframes swing{0%,100%{transform:rotateY(-30deg) rotateX(8deg)}50%{transform:rotateY(30deg) rotateX(-6deg)}}
+.m3d.spin .m3d-in{animation:spin 1.1s cubic-bezier(.3,.1,.2,1)}
+@keyframes spin{from{transform:rotateY(0)}to{transform:rotateY(1080deg)}}
+.bd{position:relative;overflow:hidden;display:grid;place-items:center;width:100%}
+.bd i{position:absolute;transform:translate(-50%,-50%);font-style:normal;color:#fff;pointer-events:none}
+.bd .fg{position:relative;z-index:1;display:grid;place-items:center;width:100%;height:100%}
+.shadow3d{position:absolute;left:50%;bottom:9%;width:36%;height:7%;background:rgba(0,0,0,.35);filter:blur(7px);border-radius:50%;transform:translateX(-50%);z-index:0}
+.gd-title{text-align:center;padding:16px 16px 4px}
+.gd-title h2{font-size:22px}
+.gd-title p{color:var(--muted);font-size:14px;margin-top:4px}
+.prop{display:flex;justify-content:space-between;align-items:center;padding:12px 18px;border-bottom:1px solid var(--line);font-size:15.5px}
+.prop>span:first-child{color:var(--muted)}
+.prop .r{display:flex;gap:8px;align-items:center}
+.rar{background:rgba(255,255,255,.1);border-radius:10px;font-size:12px;padding:2px 8px;color:#dcdce0}
+.btns{display:flex;flex-direction:column;gap:10px;padding:16px}
+.btn{background:var(--accent);color:#fff;border-radius:12px;padding:13px;font-weight:600;font-size:15.5px;text-align:center;width:100%}
+.btn.sec{background:var(--panel2);color:var(--link)}
+.btn.grad{background:linear-gradient(90deg,#7f5af0,#2AABEE)}
+.btn:active{opacity:.85}
+
+#sheetWrap{position:absolute;inset:0;background:rgba(0,0,0,.55);display:none;align-items:flex-end;z-index:110}
+#sheetWrap.open{display:flex}
+#sheet{width:100%;background:var(--panel);border-radius:18px 18px 0 0;padding:8px 0 calc(12px + env(safe-area-inset-bottom));max-height:80%;overflow-y:auto;animation:up .22s ease}
+@keyframes up{from{transform:translateY(100%)}to{transform:none}}
+#sheet .grab{width:38px;height:4px;border-radius:2px;background:#3a3a3e;margin:4px auto 10px}
+#sheet h3{font-size:17px;padding:4px 18px 10px}
+#sheet p.t{padding:0 18px 10px;color:var(--muted);font-size:14.5px;line-height:1.45}
+#sheet .opt{display:flex;align-items:center;gap:14px;padding:12px 18px;cursor:pointer;font-size:16px}
+#sheet .opt:active{background:var(--panel2)}
+#sheet .opt.danger{color:var(--danger)}
+#sheet .field{padding:4px 18px 10px}
+#sheet .field label{font-size:13px;color:var(--link);display:block;margin-bottom:4px}
+#sheet .field input{width:100%;border-bottom:2px solid var(--accent);padding:6px 0;font-size:17px;color-scheme:dark}
+#sheet .okrow{display:flex;justify-content:flex-end;gap:8px;padding:6px 18px}
+#sheet .okrow button{color:var(--accent);font-weight:600;padding:10px 14px;font-size:15px;text-transform:uppercase}
+.swatches{display:flex;gap:12px;padding:6px 18px 14px;flex-wrap:wrap}
+.swatch{width:46px;height:46px;border-radius:50%;border:3px solid transparent}
+.swatch.sel{border-color:#fff}
+
+#drawerWrap{position:absolute;inset:0;background:rgba(0,0,0,.55);display:none;z-index:70}
+#drawerWrap.open{display:block}
+#drawer{width:82%;max-width:320px;height:100%;background:var(--panel);display:flex;flex-direction:column;animation:fromleft .22s ease}
+@keyframes fromleft{from{transform:translateX(-100%)}to{transform:none}}
+.dr-head{padding:calc(24px + env(safe-area-inset-top)) 18px 16px;background:linear-gradient(160deg,var(--out),#161618)}
+.dr-head .nm{font-weight:700;font-size:17px;margin-top:12px;display:flex;align-items:center;gap:5px}
+.dr-head .ph{color:rgba(255,255,255,.7);font-size:14px;margin-top:3px}
+.dr-item{display:flex;align-items:center;gap:20px;padding:14px 20px;font-size:16px;cursor:pointer}
+.dr-item:active{background:var(--panel2)}
+.dr-item span:first-child{width:26px;text-align:center;font-size:21px}
+
+/* auth */
+.auth{position:absolute;inset:0;z-index:100;background:var(--bg);display:none;flex-direction:column;align-items:center;padding:calc(30px + env(safe-area-inset-top)) 24px 24px;overflow-y:auto}
+.auth.open{display:flex}
+.auth h2{font-size:24px;margin-top:20px;text-align:center}
+.auth p.sub{color:var(--muted);text-align:center;margin-top:10px;font-size:15px;line-height:1.45;max-width:320px}
+.afield{width:100%;max-width:360px;margin-top:20px;border:1.5px solid #3a3a3e;border-radius:12px;padding:10px 14px;position:relative;display:flex;align-items:center;gap:10px;cursor:pointer}
+.afield:focus-within{border-color:var(--accent)}
+.afield label{position:absolute;top:-9px;left:10px;background:var(--bg);padding:0 6px;font-size:12px;color:var(--muted)}
+.afield:focus-within label{color:var(--accent)}
+.afield input{flex:1;font-size:18px;padding:4px 0;width:100%;color-scheme:dark}
+.afield .cc{font-size:18px;color:#fff}
+.afield.err{border-color:var(--danger)}
+.abtn{width:100%;max-width:360px;margin-top:24px;background:var(--accent);color:#fff;border-radius:12px;padding:14px;font-weight:700;font-size:16px;text-transform:uppercase;letter-spacing:.4px}
+.abtn:disabled{opacity:.4}
+.codebox{display:flex;gap:10px;margin-top:26px}
+.codebox span{width:46px;height:54px;border-radius:12px;border:1.5px solid #3a3a3e;display:grid;place-items:center;font-size:24px;font-weight:600}
+.codebox span.cur{border-color:var(--accent)}
+.codebox.err span{border-color:var(--danger);animation:shake .3s}
+@keyframes shake{25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+.alink{color:var(--accent);margin-top:18px;font-size:15px;font-weight:600}
+#banner{position:absolute;left:10px;right:10px;top:calc(10px + env(safe-area-inset-top));background:rgba(44,44,48,.98);border-radius:16px;padding:12px 14px;z-index:120;display:flex;gap:12px;align-items:center;transform:translateY(-140%);transition:transform .3s;box-shadow:0 6px 24px rgba(0,0,0,.5)}
+#banner.show{transform:none}
+#banner b{display:block;font-size:14.5px}
+#banner span{font-size:13.5px;color:#c9c9ce}
+#toast{position:absolute;left:50%;bottom:90px;transform:translateX(-50%) translateY(20px);background:rgba(44,44,48,.97);padding:10px 18px;border-radius:20px;font-size:14.5px;opacity:0;pointer-events:none;transition:.25s;z-index:130;max-width:86%;text-align:center}
+#toast.show{opacity:1;transform:translateX(-50%)}
+@media(min-width:481px){#app{box-shadow:0 0 50px rgba(0,0,0,.6);border-radius:14px;max-height:900px;margin:auto 0}}
+.holo{position:absolute;inset:0;z-index:2;pointer-events:none;background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.3) 48%,transparent 66%);background-size:250% 100%;animation:holo 3.4s linear infinite;mix-blend-mode:screen}
+@keyframes holo{from{background-position:130% 0}to{background-position:-130% 0}}
+.gtile.r-rare{box-shadow:inset 0 0 0 1.5px #4da3ff}.gtile.r-epic{box-shadow:inset 0 0 12px #b45cff55,inset 0 0 0 1.5px #b45cff}.gtile.r-leg{box-shadow:inset 0 0 16px #ffb02e66,inset 0 0 0 1.5px #ffb02e}
+.sold{position:absolute;inset:0;background:rgba(0,0,0,.6);display:grid;place-items:center;font-weight:700;font-size:11px;z-index:3;letter-spacing:.5px}
+.cf{position:absolute;top:40%;left:50%;font-size:22px;font-style:normal;pointer-events:none;animation:cf 1.2s ease-out forwards;z-index:150}
+@keyframes cf{to{transform:translate(var(--x),var(--y)) rotate(var(--r));opacity:0}}
+
+/* polish */
+.msg{box-shadow:0 1px 2px rgba(0,0,0,.22)}
+.msg.out{background:linear-gradient(135deg,var(--out),color-mix(in srgb,var(--out) 78%,#000))}
+.msg.in.ls{border-bottom-left-radius:5px}.msg.out.ls{border-bottom-right-radius:5px}
+.msg.in:not(.ls){border-bottom-left-radius:6px}.msg.out:not(.ls){border-bottom-right-radius:6px}
+.msg.in.ct{border-top-left-radius:6px}.msg.out.ct{border-top-right-radius:6px}
+.msg.gift{border-radius:18px}
+.msg{cursor:pointer}
+.day{position:sticky;top:4px;z-index:3;backdrop-filter:blur(6px)}
+.composer textarea{background:var(--bg);border-radius:21px;padding:10px 14px;margin:0 4px}
+.composer{align-items:flex-end;border-top:1px solid var(--line)}
+.chat-head .who,#chatAv{cursor:pointer}
+nav button.active::before{content:"";position:absolute;top:0;width:28px;height:3px;border-radius:0 0 4px 4px;background:var(--accent)}
+.row:hover{background:rgba(255,255,255,.03)}
+.fab{transition:transform .15s}.fab:active{transform:scale(.92)}
+.btn{transition:opacity .15s,transform .1s}.btn:active{transform:scale(.98)}
+.pills{overflow-x:auto;scrollbar-width:none}.pills::-webkit-scrollbar{display:none}.pills button{white-space:nowrap;flex-shrink:0}
+.sortrow{display:flex;gap:8px;padding:2px 16px 0;overflow-x:auto;scrollbar-width:none}
+.sortrow button{padding:5px 12px;border-radius:14px;font-size:13px;color:var(--muted);border:1px solid var(--line);white-space:nowrap}
+.sortrow button.on{color:var(--accent);border-color:var(--accent)}
+.gtile{background:radial-gradient(circle at 50% 28%,rgba(255,255,255,.08),transparent 62%),var(--panel);min-height:158px;border:1px solid var(--line)}
+.gtile.col{min-height:0}
+.gtile.sm{min-height:112px;padding:10px 4px 8px}
+.gtile .gart{display:grid;place-items:center;filter:drop-shadow(0 6px 8px rgba(0,0,0,.35));transition:transform .2s}
+.gtile:hover .gart{transform:translateY(-3px) scale(1.05)}
+.gleft{width:68%;height:4px;border-radius:2px;background:rgba(255,255,255,.09);margin-top:8px;overflow:hidden}
+.gleft i{display:block;height:100%;border-radius:2px;background:linear-gradient(90deg,var(--accent),#2AABEE)}
+.gl{font-size:10.5px;color:var(--muted);margin:4px 0 7px}
+.gtile .price{box-shadow:0 2px 6px rgba(185,124,20,.35)}
+
+.ptabs{display:flex;gap:4px;background:var(--panel);margin:10px 12px;border-radius:22px;padding:4px;overflow-x:auto;scrollbar-width:none}
+.ptabs button{flex:1;padding:9px 12px;border-radius:18px;color:var(--muted);font-weight:600;font-size:14px;white-space:nowrap}
+.ptabs button.on{background:var(--panel2);color:var(--accent)}
+.pgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:0 12px 14px}
+.pg{position:relative;border-radius:14px;overflow:hidden;cursor:pointer;background:var(--panel)}
+.pg:active{opacity:.85}
+.pg .frm{position:absolute;top:6px;left:6px;z-index:4;width:20px;height:20px;border-radius:50%;background:rgba(0,0,0,.5);color:#fff;font-style:normal;font-size:11px;font-weight:700;display:grid;place-items:center}
+.pg .pin{position:absolute;top:5px;right:6px;z-index:4;font-size:12px}
+.pg.r-rare{box-shadow:inset 0 0 0 1.5px #4da3ff}.pg.r-epic{box-shadow:inset 0 0 0 1.5px #b45cff}.pg.r-leg{box-shadow:inset 0 0 0 1.5px #ffb02e}
+.pf-status{display:flex;align-items:center;gap:6px;color:#c9c9ce;margin-top:6px;font-size:14.5px}
+</style>
+</head>
+<body>
+
+<!-- Графика подарков (оригинальные иллюстрации) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<defs>
+  <linearGradient id="gHeart" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff9ccb"/><stop offset="1" stop-color="#e02f86"/></linearGradient>
+  <linearGradient id="gGold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff0a0"/><stop offset=".5" stop-color="#f5bf36"/><stop offset="1" stop-color="#c98310"/></linearGradient>
+  <linearGradient id="gRed" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff6b6b"/><stop offset="1" stop-color="#b3121f"/></linearGradient>
+  <linearGradient id="gRed2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff8a8a"/><stop offset="1" stop-color="#d02030"/></linearGradient>
+  <linearGradient id="gWhite" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#c3cde0"/></linearGradient>
+  <linearGradient id="gBlue" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8be9ff"/><stop offset="1" stop-color="#1f7be0"/></linearGradient>
+  <linearGradient id="gSilver" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#8f9db0"/></linearGradient>
+  <linearGradient id="gGreenD" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#58a043"/><stop offset=".5" stop-color="#2d6a2a"/><stop offset="1" stop-color="#173f18"/></linearGradient>
+  <linearGradient id="gTeal" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5eead4"/><stop offset="1" stop-color="#1b7a86"/></linearGradient>
+  <linearGradient id="gFlame" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#ff5a1f"/><stop offset=".6" stop-color="#ffb02e"/><stop offset="1" stop-color="#fff3a0"/></linearGradient>
+  <radialGradient id="gOrange" cx=".4" cy=".35" r=".8"><stop offset="0" stop-color="#ffb347"/><stop offset="1" stop-color="#e2621a"/></radialGradient>
+  <g id="fl"><g fill="currentColor"><circle cx="0" cy="-8" r="7"/><circle cx="7.6" cy="-2.5" r="7"/><circle cx="4.7" cy="6.5" r="7"/><circle cx="-4.7" cy="6.5" r="7"/><circle cx="-7.6" cy="-2.5" r="7"/></g><circle r="5" fill="#ffd54a"/></g>
+</defs>
+<symbol id="g-sparkler" viewBox="0 0 100 100"><defs><linearGradient id="gWire" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f4f8ff"/><stop offset=".5" stop-color="#97a9bf"/><stop offset="1" stop-color="#4b5d73"/></linearGradient><radialGradient id="gSpk"><stop offset="0" stop-color="#fff"/><stop offset=".35" stop-color="#ffd54a"/><stop offset="1" stop-color="#ff8a00" stop-opacity="0"/></radialGradient></defs><path d="M58 64L88 92" stroke="url(#gWire)" stroke-width="3.6" stroke-linecap="round"/><path d="M27 36L60 66" stroke="#7a4a1c" stroke-width="7" stroke-linecap="round"/><path d="M27 35L58 63" stroke="#d9a04a" stroke-width="3" stroke-linecap="round" opacity=".8"/><circle cx="26" cy="34" r="17" fill="url(#gSpk)"><animate attributeName="r" values="15;19;15" dur=".6s" repeatCount="indefinite"/></circle><path d="M26 34l-13.8 -2.4" stroke="#ffd54a" stroke-width="1.6" stroke-linecap="round"><animate attributeName="opacity" values="1;.2;1" dur="0.5s" repeatCount="indefinite"/></path><path d="M26 34l-15.3 -12.9" stroke="#ffd54a" stroke-width="1.6" stroke-linecap="round"><animate attributeName="opacity" values="1;.2;1" dur="0.75s" repeatCount="indefinite"/></path><path d="M26 34l-8.9 -24.4" stroke="#ffd54a" stroke-width="1.6" stroke-linecap="round"><animate attributeName="opacity" values="1;.2;1" dur="1.0s" repeatCount="indefinite"/></path><path d="M26 34l2.4 -13.8" stroke="#ffd54a" stroke-width="1.6" stroke-linecap="round"><animate attributeName="opacity" values="1;.2;1" dur="1.25s" repeatCount="indefinite"/></path><path d="M26 34l12.9 -15.3" stroke="#ffd54a" stroke-width="1.6" stroke-linecap="round"><animate attributeName="opacity" values="1;.2;1" dur="0.5s" repeatCount="indefinite"/></path><path d="M26 34l24.4 -8.9" stroke="#ffd54a" stroke-width="1.6" stroke-linecap="round"><animate attributeName="opacity" values="1;.2;1" dur="0.75s" repeatCount="indefinite"/></path><path d="M26 34l13.8 2.4" stroke="#ffd54a" stroke-width="1.6" stroke-linecap="round"><animate attributeName="opacity" values="1;.2;1" dur="1.0s" repeatCount="indefinite"/></path><path d="M26 34l15.3 12.9" stroke="#ffd54a" stroke-width="1.6" stroke-linecap="round"><animate attributeName="opacity" values="1;.2;1" dur="1.25s" repeatCount="indefinite"/></path><path d="M26 34l8.9 24.4" stroke="#ffd54a" stroke-width="1.6" stroke-linecap="round"><animate attributeName="opacity" values="1;.2;1" dur="0.5s" repeatCount="indefinite"/></path><path d="M26 34l-2.4 13.8" stroke="#ffd54a" stroke-width="1.6" stroke-linecap="round"><animate attributeName="opacity" values="1;.2;1" dur="0.75s" repeatCount="indefinite"/></path><path d="M26 34l-12.9 15.3" stroke="#ffd54a" stroke-width="1.6" stroke-linecap="round"><animate attributeName="opacity" values="1;.2;1" dur="1.0s" repeatCount="indefinite"/></path><path d="M26 34l-24.4 8.9" stroke="#ffd54a" stroke-width="1.6" stroke-linecap="round"><animate attributeName="opacity" values="1;.2;1" dur="1.25s" repeatCount="indefinite"/></path><path d="M8 8l1.3 2.7 2.7 1.3-2.7 1.3-1.3 2.7-1.3-2.7-2.7-1.3 2.7-1.3z" fill="#fff4b0"><animate attributeName="opacity" values="0;1;0" dur="0.9s" repeatCount="indefinite"/></path><path d="M40 4l1.3 2.7 2.7 1.3-2.7 1.3-1.3 2.7-1.3-2.7-2.7-1.3 2.7-1.3z" fill="#fff4b0"><animate attributeName="opacity" values="0;1;0" dur="1.3s" repeatCount="indefinite"/></path><path d="M12 44l1.3 2.7 2.7 1.3-2.7 1.3-1.3 2.7-1.3-2.7-2.7-1.3 2.7-1.3z" fill="#fff4b0"><animate attributeName="opacity" values="0;1;0" dur="1.1s" repeatCount="indefinite"/></path><path d="M46 26l1.3 2.7 2.7 1.3-2.7 1.3-1.3 2.7-1.3-2.7-2.7-1.3 2.7-1.3z" fill="#fff4b0"><animate attributeName="opacity" values="0;1;0" dur="0.7s" repeatCount="indefinite"/></path><path d="M20 2l1.3 2.7 2.7 1.3-2.7 1.3-1.3 2.7-1.3-2.7-2.7-1.3 2.7-1.3z" fill="#fff4b0"><animate attributeName="opacity" values="0;1;0" dur="1.6s" repeatCount="indefinite"/></path></symbol>
+<symbol id="g-heart" viewBox="0 0 100 100"><path d="M50 90C20 68 6 50 6 33 6 20 16 11 29 11c9 0 17 5 21 13 4-8 12-13 21-13 13 0 23 9 23 22 0 17-14 35-44 57z" fill="url(#gHeart)"/><path d="M17 32c0-8 6-14 14-14" stroke="#fff" stroke-opacity=".65" stroke-width="4.5" fill="none" stroke-linecap="round"/><path d="M5 42 95 30l3 17L8 60z" fill="url(#gGold)"/><path d="M5 42 95 30" stroke="#fff6b0" stroke-width="2"/></symbol>
+<symbol id="g-giftbox" viewBox="0 0 100 100"><rect x="14" y="44" width="72" height="46" rx="5" fill="url(#gRed)"/><rect x="9" y="30" width="82" height="19" rx="5" fill="url(#gRed2)"/><rect x="44" y="30" width="12" height="60" fill="url(#gGold)"/><path d="M50 30C36 10 16 16 27 27c7 6 23 3 23 3zM50 30C64 10 84 16 73 27c-7 6-23 3-23 3z" fill="url(#gGold)"/><circle cx="50" cy="30" r="5" fill="#e0a020"/></symbol>
+<symbol id="g-rose" viewBox="0 0 100 100"><path d="M50 96V54" stroke="#2f9e4f" stroke-width="5" stroke-linecap="round"/><path d="M50 82c-14-2-21-10-23-17 10 0 18 4 23 12zM50 72c12-2 19-9 21-15-9 0-17 4-21 11z" fill="#3cc060"/><path d="M50 6C33 17 25 32 29 47c3 9 12 13 21 13s18-4 21-13C75 32 67 17 50 6z" fill="url(#gRed)"/><path d="M50 6c-7 13-5 32 0 54M50 60c9-15 15-32 4-47" stroke="#7d0c14" stroke-opacity=".45" stroke-width="2.5" fill="none"/><path d="M37 21c-4 7-6 13-5 19" stroke="#fff" stroke-opacity=".55" stroke-width="3" stroke-linecap="round" fill="none"/></symbol>
+<symbol id="g-cake" viewBox="0 0 100 100"><ellipse cx="50" cy="86" rx="40" ry="8" fill="#b8c2d6"/><path d="M12 52v31c0 6 17 10 38 10s38-4 38-10V52z" fill="url(#gWhite)"/><ellipse cx="50" cy="52" rx="38" ry="12" fill="#fff"/><path d="M12 54c5 9 9 9 13 1 4 8 8 8 12 0 4 8 8 8 12 0 4 8 8 8 12 0 4 8 8 8 13-1v-4H12z" fill="#ffd9e2"/><circle cx="30" cy="49" r="5" fill="#e8344e"/><circle cx="50" cy="52" r="5" fill="#e8344e"/><circle cx="70" cy="49" r="5" fill="#e8344e"/><rect x="27" y="26" width="5" height="17" rx="2" fill="#7fc8ff"/><rect x="47.5" y="22" width="5" height="19" rx="2" fill="#ff9ccb"/><rect x="68" y="26" width="5" height="17" rx="2" fill="#7fc8ff"/><path d="M29.5 14c3 4 3 7 0 9-3-2-3-5 0-9zM50 10c3 4 3 7 0 9-3-2-3-5 0-9zM70.5 14c3 4 3 7 0 9-3-2-3-5 0-9z" fill="url(#gFlame)"/></symbol>
+<symbol id="g-bouquet" viewBox="0 0 100 100"><path d="M50 96 24 46h52z" fill="#d9b887"/><path d="M50 96 38 46h12z" fill="#c79f68"/><path d="M50 64c-4-17-15-24-24-26M50 64c4-17 15-24 24-26M50 64V32" stroke="#2f9e4f" stroke-width="4" fill="none" stroke-linecap="round"/><path d="M30 52c-10 0-16-6-17-12 10-1 16 4 17 12zM70 52c10 0 16-6 17-12-10-1-16 4-17 12z" fill="#3cc060"/><use href="#fl" transform="translate(28 30) scale(1.15)" style="color:#ff5c8a"/><use href="#fl" transform="translate(72 30) scale(1.15)" style="color:#ff9b3d"/><use href="#fl" transform="translate(50 20) scale(1.3)" style="color:#e8344e"/><path d="M22 50h56l-4 10H26z" fill="#ff8aa8"/></symbol>
+<symbol id="g-rocket" viewBox="0 0 100 100"><g transform="rotate(35 50 52) translate(0 -2)"><path d="M32 58 14 76l3 11 18-10zM68 58l18 18-3 11-18-10z" fill="url(#gRed)"/><path d="M50 4c15 12 22 33 19 56H31C28 37 35 16 50 4z" fill="url(#gWhite)"/><path d="M50 4c-6 5-10 11-12 18h24c-2-7-6-13-12-18z" fill="url(#gRed)"/><circle cx="50" cy="40" r="9" fill="url(#gBlue)" stroke="#9db4d3" stroke-width="3"/><path d="M38 60h24l-4 16H42z" fill="#e1e8f3"/><path d="M42 78c0 11 4 17 8 22 4-5 8-11 8-22z" fill="url(#gFlame)"/></g></symbol>
+<symbol id="g-trophy" viewBox="0 0 100 100"><path d="M27 10h46v26c0 15-10 25-23 25S27 51 27 36z" fill="url(#gGold)"/><path d="M27 17H11c0 17 6 25 19 28M73 17h16c0 17-6 25-19 28" stroke="url(#gGold)" stroke-width="6" fill="none" stroke-linecap="round"/><rect x="44" y="58" width="12" height="15" fill="#d9a21b"/><rect x="29" y="72" width="42" height="9" rx="3" fill="url(#gGold)"/><rect x="23" y="81" width="54" height="13" rx="3" fill="#8a4b22"/><path d="M37 18v19" stroke="#fff" stroke-opacity=".55" stroke-width="4.5" stroke-linecap="round"/><path d="M50 24l3 6 6 1-4 4 1 6-6-3-6 3 1-6-4-4 6-1z" fill="#fff4b8"/></symbol>
+<symbol id="g-ring" viewBox="0 0 100 100"><ellipse cx="50" cy="68" rx="29" ry="26" fill="none" stroke="url(#gSilver)" stroke-width="10"/><ellipse cx="50" cy="68" rx="29" ry="26" fill="none" stroke="#fff" stroke-opacity=".35" stroke-width="2"/><path d="M36 22 43 8h14l7 14-14 18z" fill="url(#gBlue)"/><path d="M36 22h28M43 8l-7 14 14 18 14-18-7-14M50 8v32" stroke="#fff" stroke-opacity=".75" stroke-width="1.5" fill="none"/><path d="M44 40h12l-2 6h-8z" fill="url(#gSilver)"/></symbol>
+<symbol id="g-gem" viewBox="0 0 100 100"><path d="M26 12h48l22 25-46 56L4 37z" fill="url(#gBlue)"/><path d="M4 37h92M26 12l14 25 10 56M74 12 60 37 50 93M40 37l10-25 10 25" stroke="#fff" stroke-opacity=".6" stroke-width="2" fill="none" stroke-linejoin="round"/><path d="M14 33 28 18" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-opacity=".8"/></symbol>
+<symbol id="g-champagne" viewBox="0 0 100 100"><path d="M42 12h16v18c0 4 6 9 6 17v44c0 4-4 6-14 6s-14-2-14-6V47c0-8 6-13 6-17z" fill="url(#gGreenD)"/><rect x="39" y="4" width="22" height="14" rx="3" fill="url(#gGold)"/><path d="M36 56h28v24H36z" fill="#f3e9c4"/><path d="M40 62h20M40 68h20M40 74h14" stroke="#b79a4a" stroke-width="2"/><path d="M45 28v52" stroke="#fff" stroke-opacity=".22" stroke-width="4" stroke-linecap="round"/><circle cx="72" cy="14" r="3" fill="#fff" fill-opacity=".8"/><circle cx="80" cy="26" r="2" fill="#fff" fill-opacity=".7"/><circle cx="24" cy="20" r="2.5" fill="#fff" fill-opacity=".7"/></symbol>
+<symbol id="g-torch" viewBox="0 0 100 100"><path d="M37 42h26l-5 52H42z" fill="url(#gTeal)"/><rect x="29" y="35" width="42" height="13" rx="4" fill="url(#gGold)"/><path d="M50 2c11 11 17 18 11 28-3 5-19 5-22 0-6-10 0-17 11-28z" fill="url(#gFlame)"/><path d="M50 14c5 6 8 10 4 15-2 3-9 3-9 0-2-5 1-9 5-15z" fill="#fff6c2"/></symbol>
+<symbol id="g-pumpkin" viewBox="0 0 100 100"><path d="M50 22c-30-7-45 13-41 36 4 19 22 31 41 31s37-12 41-31c4-23-11-43-41-36z" fill="url(#gOrange)"/><path d="M50 22c-12 11-14 44 0 67M50 22c12 11 14 44 0 67" stroke="#b64a0c" stroke-opacity=".5" stroke-width="3" fill="none"/><path d="M47 22c0-8 4-14 11-17" stroke="#3a8a2a" stroke-width="6" stroke-linecap="round" fill="none"/><path d="M28 47l14 7-14 8zM72 47 58 54l14 8z" fill="#3a1a05"/><path d="M30 68q20 18 40 0l-5 9-7-5-8 6-8-6-7 5z" fill="#3a1a05"/><path d="M30 68q20 18 40 0" stroke="#ffd27a" stroke-width="1.5" fill="none" opacity=".6"/></symbol>
+<symbol id="g-crown" viewBox="0 0 100 100"><path d="M10 78 6 30l22 20 22-34 22 34 22-20-4 48z" fill="url(#gGold)"/><rect x="10" y="78" width="80" height="10" rx="3" fill="#c98310"/><circle cx="6" cy="30" r="5" fill="#ff6b6b"/><circle cx="50" cy="16" r="5" fill="#8be9ff"/><circle cx="94" cy="30" r="5" fill="#ff6b6b"/><circle cx="50" cy="66" r="6" fill="url(#gRed)"/></symbol>
+<symbol id="g-bear" viewBox="0 0 100 100"><circle cx="22" cy="24" r="12" fill="#b9814f"/><circle cx="78" cy="24" r="12" fill="#b9814f"/><circle cx="22" cy="24" r="6" fill="#f3c9a0"/><circle cx="78" cy="24" r="6" fill="#f3c9a0"/><ellipse cx="50" cy="80" rx="26" ry="18" fill="#b9814f"/><circle cx="50" cy="42" r="28" fill="#c8915c"/><ellipse cx="50" cy="52" rx="13" ry="10" fill="#f3c9a0"/><circle cx="40" cy="38" r="3.5" fill="#2a1a10"/><circle cx="60" cy="38" r="3.5" fill="#2a1a10"/><ellipse cx="50" cy="48" rx="4.5" ry="3.2" fill="#2a1a10"/><path d="M44 56q6 4 12 0" stroke="#2a1a10" stroke-width="2" fill="none" stroke-linecap="round"/><path d="M50 70l-14-7v14zM50 70l14-7v14z" fill="url(#gRed)"/><circle cx="50" cy="70" r="4" fill="#ff8a8a"/></symbol>
+<symbol id="g-balloon" viewBox="0 0 100 100"><path d="M50 94c-1-8 6-12 0-18" stroke="#9aa5b8" stroke-width="2" fill="none"/><path d="M50 8C27 8 18 28 22 46c3 14 18 26 28 28 10-2 25-14 28-28C82 28 73 8 50 8z" fill="url(#gHeart)"/><path d="M44 74l6 8 6-8z" fill="#e02f86"/><path d="M32 28c2-8 8-13 15-14" stroke="#fff" stroke-opacity=".7" stroke-width="5" fill="none" stroke-linecap="round"/></symbol>
+<symbol id="g-star" viewBox="0 0 100 100"><path d="M50 6l13 28 31 4-23 21 6 30-27-15-27 15 6-30L6 38l31-4z" fill="url(#gGold)" stroke="#fff6b0" stroke-width="2" stroke-linejoin="round"/><path d="M50 18l8 18" stroke="#fff" stroke-opacity=".7" stroke-width="4" stroke-linecap="round"/></symbol>
+<symbol id="g-potion" viewBox="0 0 100 100"><rect x="40" y="6" width="20" height="12" rx="3" fill="url(#gGold)"/><path d="M42 18h16v20l20 32c6 12-2 24-14 24H36c-12 0-20-12-14-24l20-32z" fill="#e8f4ff" fill-opacity=".35" stroke="#cfe3ff" stroke-width="3"/><path d="M28 64h44l6 8c4 10-2 20-12 20H34c-10 0-16-10-12-20z" fill="url(#gTeal)"/><circle cx="42" cy="78" r="4" fill="#fff" fill-opacity=".7"/><circle cx="58" cy="72" r="3" fill="#fff" fill-opacity=".6"/></symbol>
+<symbol id="g-cupcake" viewBox="0 0 100 100"><path d="M24 56h52l-8 36H32z" fill="#e8a76b"/><path d="M35 56l4 36M47 56l1 36M59 56l-1 36M69 56l-4 36" stroke="#b97a3d" stroke-width="2"/><path d="M16 58c-4-14 8-19 14-19 0-14 12-25 20-25s20 11 20 25c6 0 18 5 14 19z" fill="url(#gHeart)"/><path d="M30 46c6 3 12 3 18 0M52 36c6 3 12 3 16 0" stroke="#fff" stroke-opacity=".5" stroke-width="3" fill="none" stroke-linecap="round"/><circle cx="50" cy="12" r="6" fill="url(#gRed)"/><path d="M50 6c1-3 3-4 6-4" stroke="#2f9e4f" stroke-width="2" fill="none"/></symbol>
+<symbol id="g-ghost" viewBox="0 0 100 100"><path d="M18 92V46C18 24 32 8 50 8s32 16 32 38v46l-9-8-9 8-9-8-9 8-9-8z" fill="url(#gWhite)"/><circle cx="39" cy="44" r="5.5" fill="#2a2a3a"/><circle cx="61" cy="44" r="5.5" fill="#2a2a3a"/><ellipse cx="50" cy="60" rx="5" ry="7" fill="#2a2a3a"/><circle cx="30" cy="56" r="4.5" fill="#ff9ccb" fill-opacity=".7"/><circle cx="70" cy="56" r="4.5" fill="#ff9ccb" fill-opacity=".7"/><path d="M28 24c3-6 8-9 14-10" stroke="#fff" stroke-width="4" stroke-linecap="round" fill="none"/></symbol>
+<symbol id="g-snowman" viewBox="0 0 100 100"><circle cx="50" cy="76" r="20" fill="url(#gWhite)"/><circle cx="50" cy="50" r="15" fill="url(#gWhite)"/><circle cx="50" cy="28" r="12" fill="url(#gWhite)"/><path d="M38 20h24l-3-14H41z" fill="#2a2a3a"/><rect x="34" y="18" width="32" height="5" rx="2" fill="#2a2a3a"/><rect x="41" y="16" width="18" height="3" fill="url(#gRed)"/><circle cx="45.5" cy="26" r="1.8" fill="#222"/><circle cx="54.5" cy="26" r="1.8" fill="#222"/><path d="M50 29l11 2-11 2z" fill="#ff8a3d"/><path d="M36 38c10 6 18 6 28 0l-1 7c-9 5-17 5-26 0z" fill="url(#gRed)"/><circle cx="50" cy="56" r="2" fill="#2a2a3a"/><circle cx="50" cy="68" r="2.5" fill="#2a2a3a"/><circle cx="50" cy="80" r="2.5" fill="#2a2a3a"/></symbol>
+<symbol id="g-moon" viewBox="0 0 100 100"><path d="M62 6A44 44 0 1 0 94 64 34 34 0 0 1 62 6z" fill="url(#gGold)"/><path d="M26 40c2-10 8-18 16-23" stroke="#fff" stroke-opacity=".6" stroke-width="4" stroke-linecap="round" fill="none"/><path d="M78 12l2 5 5 1-4 3 1 5-4-3-4 3 1-5-4-3 5-1z" fill="#fff4b8"/><circle cx="88" cy="38" r="2.5" fill="#fff4b8"/><circle cx="70" cy="30" r="1.8" fill="#fff4b8"/></symbol>
+<symbol id="g-wizard" viewBox="0 0 100 100"><defs><linearGradient id="gPurple" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#b88cff"/><stop offset="1" stop-color="#4a2a9a"/></linearGradient></defs><path d="M52 4C58 30 68 52 80 74H22C34 54 46 30 52 4z" fill="url(#gPurple)"/><path d="M50 4c10-2 18 6 14 14" stroke="#4a2a9a" stroke-width="6" stroke-linecap="round" fill="none"/><ellipse cx="50" cy="78" rx="42" ry="12" fill="#3a1f7a"/><path d="M26 72q24 8 48 0l1 6q-25 9-50 0z" fill="url(#gGold)"/><path d="M48 40l2 5 5 1-4 3 1 5-4-3-4 3 1-5-4-3 5-1z" fill="#fff4b8"/><circle cx="62" cy="58" r="2.5" fill="#fff4b8"/><circle cx="38" cy="60" r="2" fill="#fff4b8"/></symbol>
+<symbol id="g-duck" viewBox="0 0 100 100"><path d="M14 62c0-16 14-22 28-22 4 0 8 1 11 2 0-14 6-30 20-30 12 0 18 10 14 22l8 4-8 4c0 12-8 20-8 20 8 4 14 12 10 24H28C16 86 14 74 14 62z" fill="#ffd93b"/><path d="M14 62c0 12 2 24 14 24h60c4-12-2-20-10-24" fill="#f5b800" fill-opacity=".45"/><path d="M82 28l14 4-14 6z" fill="#ff8a3d"/><circle cx="72" cy="22" r="3.2" fill="#2a1a10"/><path d="M30 62c8 10 22 10 30-2-8-4-20-4-30 2z" fill="#f5b800"/><path d="M20 66c-2 4 0 10 6 14" stroke="#fff" stroke-opacity=".5" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M6 80c10 4 18-2 26 2s16 4 24 0 20 4 30-2" stroke="#7fc8ff" stroke-width="4" fill="none" stroke-linecap="round" opacity=".8"/></symbol>
+<symbol id="g-clover" viewBox="0 0 100 100"><path d="M50 52C54 66 58 80 70 94" stroke="#2f9e4f" stroke-width="5" stroke-linecap="round" fill="none"/><g fill="url(#gGreenD)"><circle cx="36" cy="36" r="17"/><circle cx="64" cy="36" r="17"/><circle cx="36" cy="64" r="17"/><circle cx="64" cy="64" r="17"/></g><g fill="#58c064" fill-opacity=".55"><circle cx="33" cy="32" r="8"/><circle cx="61" cy="32" r="8"/><circle cx="33" cy="60" r="8"/><circle cx="61" cy="60" r="8"/></g><circle cx="50" cy="50" r="5" fill="#173f18"/></symbol>
+<symbol id="g-planet" viewBox="0 0 100 100"><ellipse cx="50" cy="52" rx="46" ry="12" fill="none" stroke="#c98310" stroke-width="5" transform="rotate(-18 50 52)"/><circle cx="50" cy="50" r="28" fill="url(#gOrange)"/><path d="M26 42c10 6 34 6 48-2M24 58c14 6 36 6 52-2" stroke="#b64a0c" stroke-opacity=".45" stroke-width="4" fill="none"/><circle cx="40" cy="38" r="6" fill="#fff" fill-opacity=".3"/><path d="M5 58C18 70 70 60 95 44" stroke="#f5bf36" stroke-width="5" fill="none" stroke-linecap="round" transform="rotate(-18 50 52)" clip-path="inset(50% 0 0 0)"/></symbol>
+<symbol id="g-coffee" viewBox="0 0 100 100"><path d="M34 12c-5 6 5 10 0 18M50 8c-5 6 5 10 0 18M66 12c-5 6 5 10 0 18" stroke="#fff" stroke-opacity=".7" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M18 38h56v22c0 16-10 26-28 26S18 76 18 60z" fill="url(#gWhite)"/><path d="M74 44h6c10 0 12 18 0 18h-8" stroke="#dbe3f1" stroke-width="6" fill="none"/><ellipse cx="46" cy="38" rx="28" ry="6" fill="#6b3a1e"/><path d="M26 50v14" stroke="#fff" stroke-width="5" stroke-linecap="round" opacity=".7"/><ellipse cx="46" cy="90" rx="38" ry="6" fill="#b8c2d6"/><path d="M42 56l-6 4c-3 4 0 8 4 6l6-4 6 4c4 2 7-2 4-6z" fill="#e8344e"/></symbol>
+<symbol id="g-bolt" viewBox="0 0 100 100"><path d="M60 3 20 54h24l-8 43 44-58H54z" fill="url(#gGold)" stroke="#fff6b0" stroke-width="2" stroke-linejoin="round"/><path d="M56 14 34 44" stroke="#fff" stroke-opacity=".75" stroke-width="4" stroke-linecap="round"/></symbol>
+</svg>
+
+<div id="app">
+  <div id="screens">
+    <section class="screen active" id="s-chats">
+      <div class="bar" id="chatsBar">
+        <button class="iconbtn" id="burger" aria-label="Меню"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+        <h1>Vopgram</h1>
+        <input class="search" id="chatSearch" placeholder="Поиск" autocomplete="off">
+        <button class="iconbtn" id="searchBtn" aria-label="Поиск"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></button>
+      </div>
+      <div class="folders" id="folders">
+        <button data-f="all" class="on">Все</button><button data-f="personal">Личные</button><button data-f="channels">Каналы</button>
+      </div>
+      <div class="scroll" id="chatList"></div>
+      <button class="fab" id="fabNew" aria-label="Новый чат"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>
+    </section>
+    <section class="screen" id="s-contacts">
+      <div class="bar"><h1>Контакты</h1>
+        <button class="iconbtn" id="addContact" aria-label="Добавить"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button></div>
+      <div class="scroll" id="contactList"></div>
+    </section>
+    <section class="screen" id="s-gifts">
+      <div class="bar"><h1>Подарки</h1></div>
+      <div class="scroll">
+        <div class="ghead">Отправьте подарок другу или себе. Любой подарок можно улучшить до коллекционного и затем подарить другому пользователю.</div>
+        <div class="pills" id="giftPills"><button data-t="all" class="on">Все</button><button data-t="new">Новые</button><button data-t="cheap">Недорогие</button><button data-t="rare">Лимитные</button><button data-t="col">Маркет</button><button data-t="mine">Мои</button></div>
+        <div id="giftTools"></div>
+        <div class="ggrid" id="giftGrid"></div>
+      </div>
+      <div class="balance-bar"><span>Баланс: <b id="gbal">0</b> ⭐</span><button class="pill" id="topup">Пополнить</button></div>
+    </section>
+    <section class="screen" id="s-profile">
+      <div class="bar">
+        <button class="iconbtn" id="setBack" aria-label="Назад"><svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
+        <h1>Мой профиль</h1>
+        <button class="iconbtn" id="setSearch" aria-label="Поиск"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></button>
+        <button class="iconbtn" id="editProfile" aria-label="Изменить"><svg viewBox="0 0 24 24"><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>
+        <button class="iconbtn" id="setMenu" aria-label="Ещё"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="12" cy="19" r="1.2"/></svg></button>
+      </div>
+      <div class="scroll" id="profileBody"></div>
+    </section>
+  </div>
+
+  <nav id="nav">
+    <button data-tab="chats" class="active"><svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.5 7.2L4 20l1.1-4.4A8 8 0 1 1 21 12z"/></svg>Чаты<span class="dot" id="navDot"></span></button>
+    <button data-tab="contacts"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14.3c2 .7 3.5 2.6 3.5 5.7"/></svg>Контакты</button>
+    <button data-tab="gifts"><svg viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13M5 12v8h14v-8M12 8C9.5 8 7.5 7 7.5 5.5S9.5 3 12 8zM12 8c2.5 0 4.5-1 4.5-2.5S14.5 3 12 8z"/></svg>Подарки</button>
+    <button data-tab="profile"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></svg>Профиль</button>
+  </nav>
+
+  <div class="overlay" id="chatView">
+    <div class="chat-head">
+      <button class="iconbtn" id="chatBack" aria-label="Назад"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+      <div id="chatAv"></div>
+      <div class="who"><div class="nm" id="chatName"></div><div class="st" id="chatStatus"></div></div>
+      <button class="iconbtn" id="chatMenu" aria-label="Меню"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="12" cy="19" r="1.2"/></svg></button>
+    </div>
+    <div id="msgs"></div>
+    <div class="emoji-panel" id="emojiPanel"></div>
+    <div class="composer">
+      <button class="iconbtn" id="emojiBtn" aria-label="Эмодзи"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><path d="M9 9.5h.01M15 9.5h.01"/></svg></button>
+      <textarea id="input" rows="1" placeholder="Сообщение"></textarea>
+      <button class="iconbtn" id="giftBtn" aria-label="Подарок"><svg viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13M5 12v8h14v-8"/></svg></button>
+      <button class="sendbtn" id="sendBtn" aria-label="Отправить"></button>
+    </div>
+  </div>
+
+  <div class="overlay" id="subView">
+    <div class="bar"><button class="iconbtn" id="subBack" aria-label="Назад"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button><h1 id="subTitle"></h1></div>
+    <div class="scroll" id="subBody"></div>
+  </div>
+  <div class="overlay" id="giftView">
+    <div class="bar"><button class="iconbtn" id="giftBack" aria-label="Назад"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button><h1 id="giftBarTitle">Подарок</h1></div>
+    <div class="scroll" id="giftBody"></div>
+  </div>
+
+  <div class="auth" id="auth"></div>
+  <div id="drawerWrap"><div id="drawer"></div></div>
+  <div id="sheetWrap"><div id="sheet"></div></div>
+  <div id="banner"></div>
+  <div id="toast"></div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const ACC_KEY = 'vopgram_accounts_v4', SES_KEY = 'vopgram_session_v4';
+const MIN = 6e4, H = 36e5, D = 864e5;
+const rnd = (a,b) => Math.floor(Math.random()*(b-a+1))+a;
+const uid = () => Math.random().toString(36).slice(2,9);
+const num = n => Number(n).toLocaleString('ru-RU');
+const plural = (n,[a,b,c]) => { const m=n%100, k=n%10; return (m>10&&m<20)?c:(k===1?a:(k>1&&k<5?b:c)); };
+function wpick(arr){ let t=arr.reduce((s,x)=>s+x.w,0), r=Math.random()*t; for(let i=0;i<arr.length;i++){ if((r-=arr[i].w)<0) return i; } return 0; }
+
+/* обои-«дудлы» */
+const DOODLE = `<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 200 200' fill='none' stroke='#9a86ff' stroke-opacity='.2' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'><path d='M30 22l4 9 10 1-7 7 2 10-9-5-9 5 2-10-7-7 10-1z'/><path d='M130 30c-6-10-20-4-14 7 4 7 14 12 14 12s10-5 14-12c6-11-8-17-14-7z'/><circle cx='160' cy='120' r='14'/><path d='M154 116v.01M166 116v.01M153 124q7 6 14 0'/><path d='M62 108c-8-1-12 9-4 12h28c9-1 8-13-1-13-2-9-15-9-18 1z'/><path d='M104 168q4-12 8 0t8 0 8 0'/><path d='M78 24v18M78 24l12-3v18'/><circle cx='74' cy='42' r='4'/><circle cx='86' cy='39' r='4'/><path d='M22 84l12 12M34 84L22 96'/><path d='M30 160l14-14M36 166l14-14M26 154l6 6'/><path d='M170 60l-8 14 14 0z'/><circle cx='116' cy='96' r='3'/><circle cx='150' cy='176' r='6'/><path d='M60 178c4-8 14-8 18 0'/></svg>`;
+document.documentElement.style.setProperty('--doodle', `url("data:image/svg+xml,${encodeURIComponent(DOODLE)}")`);
+
+/* ---------- иконки ---------- */
+const ICON = {
+  phone:'<path d="M6.6 3h3l1.4 4-2 1.4a11 11 0 0 0 6.6 6.6l1.4-2 4 1.4v3a2 2 0 0 1-2 2A16 16 0 0 1 4.6 5a2 2 0 0 1 2-2z" fill="#fff" stroke="none"/>',
+  at:'<circle cx="12" cy="12" r="4"/><path d="M16 8v5a2.5 2.5 0 0 0 5 0v-1a9 9 0 1 0-3.5 7"/>',
+  info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5h.01"/>',
+  cake:'<path d="M4 20h16v-7H4zM4 15c2 2 4-2 8 0s6 2 8 0M12 13V9M12 6.5V6"/>',
+  user:'<circle cx="12" cy="9" r="4"/><path d="M4 20c1-4 4-6 8-6s7 2 8 6"/>',
+  gear:'<circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/>',
+  bell:'<path d="M6 17V11a6 6 0 0 1 12 0v6l1.5 2h-15zM10 21h4"/>',
+  lock:'<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
+  pie:'<path d="M12 3a9 9 0 1 0 9 9h-9z"/><path d="M15 3.5A9 9 0 0 1 20.5 9H15z"/>',
+  folder:'<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+  bolt:'<path d="M13 3L5 14h6l-1 7 8-11h-6z"/>',
+  smile:'<circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2.5 4 2.5S16 14 16 14M9 9.5h.01M15 9.5h.01"/>',
+  globe:'<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/>',
+  devices:'<rect x="3" y="5" width="12" height="9" rx="1.5"/><rect x="14" y="9" width="7" height="11" rx="1.5"/>',
+  star:'<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z" fill="#fff" stroke="none"/>',
+  starO:'<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/>',
+  gem:'<path d="M6 4h12l4 6-10 11L2 10zM2 10h20M9 4l-2 6 5 11M15 4l2 6-5 11"/>',
+  gift:'<rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13M5 12v8h14v-8M12 8C9.5 8 7.5 7 7.5 5.5S9.5 3 12 8zM12 8c2.5 0 4.5-1 4.5-2.5S14.5 3 12 8z"/>',
+  chat:'<path d="M21 12a8 8 0 0 1-11.5 7.2L4 20l1.1-4.4A8 8 0 1 1 21 12z"/><path d="M8.5 12h7"/>',
+  help:'<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 1-1 1.7M12 17h.01"/>',
+  shield:'<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/>',
+  logout:'<path d="M9 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4M16 8l4 4-4 4M20 12H9"/>'
+};
+const ico = (n,c) => `<div class="si" style="background:${c}"><svg viewBox="0 0 24 24">${ICON[n]}</svg></div>`;
+const QR = '<svg class="qr" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M21 14v.01M14 21h3M21 17v4"/></svg>';
+
+/* ---------- каталог подарков ---------- */
+const GIFTS = [
+  {id:'pumpkin',n:'Тыква-Страшилка',p:50,sup:6000},{id:'sparkler',n:'Бенгальский огонь',p:550,sup:3000,isNew:true,market:true},
+  {id:'heart',n:'Сердце с лентой',p:15,sup:100000},
+  {id:'giftbox',n:'Подарочная коробка',p:25,sup:80000},
+  {id:'rose',n:'Алая роза',p:25,sup:50000},
+  {id:'cake',n:'Праздничный торт',p:50,sup:30000},
+  {id:'bouquet',n:'Букет',p:50,sup:30000},
+  {id:'rocket',n:'Ракета',p:50,sup:25000},
+  {id:'trophy',n:'Золотой кубок',p:100,sup:10000},
+  {id:'ring',n:'Кольцо с камнем',p:100,sup:8000},
+  {id:'gem',n:'Кристалл',p:100,sup:8000},
+  {id:'champagne',n:'Шампанское',p:50,sup:25000},
+  {id:'torch',n:'Факел Света',p:200,sup:2000,market:true},
+  {id:'bear',n:'Плюшевый мишка',p:75,sup:20000,isNew:true},{id:'balloon',n:'Воздушный шар',p:35,sup:60000,isNew:true},{id:'star',n:'Звезда удачи',p:150,sup:5000,isNew:true},{id:'crown',n:'Корона',p:300,sup:3000,isNew:true,market:true},{id:'potion',n:'Эликсир',p:500,sup:800,isNew:true,market:true},
+  {id:'cupcake',n:'Капкейк',p:30,sup:70000,isNew:true},{id:'coffee',n:'Утренний кофе',p:20,sup:90000,isNew:true},{id:'clover',n:'Клевер удачи',p:60,sup:20000,isNew:true},
+  {id:'duck',n:'Уточка',p:45,sup:40000,isNew:true},{id:'ghost',n:'Привидение',p:80,sup:15000,isNew:true},{id:'snowman',n:'Снеговик',p:90,sup:12000,isNew:true},
+  {id:'bolt',n:'Молния',p:120,sup:9000,isNew:true},{id:'moon',n:'Лунный серп',p:180,sup:4000,isNew:true,market:true},{id:'wizard',n:'Шляпа мага',p:250,sup:2500,isNew:true,market:true},
+  {id:'planet',n:'Планета',p:400,sup:1200,isNew:true,market:true}
+];
+const UPGRADE_COST = 40, NEUTRAL = 'saturate(1)';
+const MODELS = [
+  {n:'Классика',f:NEUTRAL,w:30},{n:'Изумруд',f:'hue-rotate(90deg) saturate(1.2)',w:20},{n:'Сапфир',f:'hue-rotate(180deg) saturate(1.2)',w:20},
+  {n:'Аметист',f:'hue-rotate(260deg) saturate(1.2)',w:15},{n:'Золото',f:'sepia(1) saturate(3.2) hue-rotate(-8deg)',w:10},{n:'Призрак',f:'grayscale(1) brightness(1.5)',w:5},{n:'Неон',f:'hue-rotate(310deg) saturate(2) brightness(1.15)',w:8},{n:'Лёд',f:'hue-rotate(150deg) saturate(.6) brightness(1.3)',w:6},{n:'Лава',f:'hue-rotate(-25deg) saturate(2.2) brightness(.95)',w:4},{n:'Космический',f:'hue-rotate(220deg) saturate(2.5) contrast(1.15)',w:2}
+];
+const BACKDROPS = [
+  {n:'Полночь',c:['#27374d','#07090e'],w:25},{n:'Закат',c:['#ff8a5c','#5b1a8f'],w:20},{n:'Океан',c:['#28b5d6','#0a2f52'],w:20},
+  {n:'Изумрудный лес',c:['#43cea2','#0c3b2e'],w:15},{n:'Роза',c:['#ff9aae','#8f2459'],w:10},{n:'Космос',c:['#8a2be2','#12073a'],w:7},{n:'Золотой час',c:['#ffb02e','#6b2d00'],w:3},{n:'Северное сияние',c:['#5bffb0','#1b2a6b'],w:5},{n:'Магма',c:['#ff4b1f','#2b0500'],w:4},{n:'Чёрная дыра',c:['#4a2a9a','#000000'],w:2},{n:'Радужный',c:['#f7797d','#5b86e5'],w:1.5}
+];
+const SYMBOLS = [{c:'✦',n:'Искра',w:25},{c:'❄',n:'Снежинка',w:20},{c:'✿',n:'Цветок',w:20},{c:'☾',n:'Месяц',w:15},{c:'♦',n:'Ромб',w:10},{c:'⚡',n:'Молния',w:7},{c:'✺',n:'Солнце',w:3},{c:'♛',n:'Корона',w:4},{c:'✪',n:'Звезда',w:3},{c:'❤',n:'Сердце',w:2}];
+const DEF_BD = {c:['#2a2a2e','#121214']};
+const COLORS = ['linear-gradient(135deg,#ff9a8b,#e0537a)','linear-gradient(135deg,#8ec5fc,#4d7cfe)','linear-gradient(135deg,#a1ffce,#2bb673)','linear-gradient(135deg,#fbc2eb,#a259d9)','linear-gradient(135deg,#ffd86f,#fc6262)','linear-gradient(135deg,#84fab0,#0abde3)'];
+const THEMES = [
+  {n:'Графит',bg:'#0f0f10',panel:'#1d1d1f',panel2:'#2a2a2d',in:'#242427',out:'#5f51c4',a:'#8774E1'},
+  {n:'Синий',bg:'#0E1621',panel:'#17212B',panel2:'#1E2C3A',in:'#182533',out:'#2B5278',a:'#2AABEE'},
+  {n:'Изумруд',bg:'#0f1211',panel:'#1b211f',panel2:'#26302d',in:'#212826',out:'#2E6B4F',a:'#4CC38A'},
+  {n:'Янтарь',bg:'#100f0d',panel:'#201d19',panel2:'#2c2823',in:'#26221d',out:'#8A5A2B',a:'#F0913A'},
+  {n:'Рубин (Premium)',prem:1,bg:'#120a0c',panel:'#221416',panel2:'#301e21',in:'#2a191c',out:'#a02a45',a:'#ff5c7c'},
+  {n:'Аврора (Premium)',prem:1,bg:'#0a1210',panel:'#12211e',panel2:'#1b302b',in:'#16282a',out:'#1f7a6e',a:'#5bffb0'}
+];
+/* [флаг, страна, код, мин. цифр, макс. цифр] */
+const COUNTRIES = [
+['🇺🇦','Украина','380',9,9],['🇷🇺','Россия','7',10,10],['🇧🇾','Беларусь','375',9,9],['🇰🇿','Казахстан','7',10,10],
+['🏴','Анонимные номера (Fragment)','888',8,8],
+['🇮🇹','Италия','39',9,10],['🇵🇱','Польша','48',9,9],['🇩🇪','Германия','49',10,11],['🇺🇸','США','1',10,10],['🇨🇦','Канада','1',10,10],
+['🇬🇧','Великобритания','44',10,10],['🇫🇷','Франция','33',9,9],['🇪🇸','Испания','34',9,9],['🇵🇹','Португалия','351',9,9],['🇳🇱','Нидерланды','31',9,9],
+['🇧🇪','Бельгия','32',9,9],['🇨🇭','Швейцария','41',9,9],['🇦🇹','Австрия','43',10,11],['🇸🇪','Швеция','46',9,9],['🇳🇴','Норвегия','47',8,8],
+['🇫🇮','Финляндия','358',9,10],['🇩🇰','Дания','45',8,8],['🇨🇿','Чехия','420',9,9],['🇸🇰','Словакия','421',9,9],['🇭🇺','Венгрия','36',9,9],
+['🇷🇴','Румыния','40',9,9],['🇧🇬','Болгария','359',9,9],['🇬🇷','Греция','30',10,10],['🇷🇸','Сербия','381',9,9],['🇭🇷','Хорватия','385',9,9],
+['🇱🇹','Литва','370',8,8],['🇱🇻','Латвия','371',8,8],['🇪🇪','Эстония','372',7,8],['🇲🇩','Молдова','373',8,8],['🇬🇪','Грузия','995',9,9],
+['🇦🇲','Армения','374',8,8],['🇦🇿','Азербайджан','994',9,9],['🇺🇿','Узбекистан','998',9,9],['🇰🇬','Кыргызстан','996',9,9],['🇹🇯','Таджикистан','992',9,9],
+['🇹🇲','Туркменистан','993',8,8],['🇹🇷','Турция','90',10,10],['🇮🇱','Израиль','972',9,9],['🇦🇪','ОАЭ','971',9,9],['🇸🇦','Саудовская Аравия','966',9,9],
+['🇪🇬','Египет','20',10,10],['🇮🇳','Индия','91',10,10],['🇨🇳','Китай','86',11,11],['🇯🇵','Япония','81',10,10],['🇰🇷','Южная Корея','82',9,10],
+['🇹🇭','Таиланд','66',9,9],['🇻🇳','Вьетнам','84',9,9],['🇮🇩','Индонезия','62',9,11],['🇧🇷','Бразилия','55',10,11],['🇲🇽','Мексика','52',10,10],
+['🇦🇷','Аргентина','54',10,10],['🇦🇺','Австралия','61',9,9],['🇿🇦','ЮАР','27',9,9],['🇳🇬','Нигерия','234',10,10],['🇲🇦','Марокко','212',9,9]
+];
+const DEF_CC = 0;
+const EMOJI = '😀 😁 😂 🤣 😊 😍 😘 😎 🤔 😢 😭 😡 👍 👎 👏 🙏 💪 🔥 ❤️ 💔 🎉 ✨ 🌹 🎁 🐰 🚀 💎 ⭐ 🍀 ☕ 🍕 🎵'.split(' ');
+const REPLIES = {
+  default:['Привет! 😊','Окей, понял','Ха-ха, классно!','Расскажи подробнее','Да, конечно','Давай позже обсудим','Ого, серьёзно? 😮','Договорились 👍'],
+  mom:['Сынок, ты кушал? 🍲','Не забудь тёплую куртку','Позвони, как освободишься ❤️','Хорошо, целую!'],
+  gift:['Спасибо за подарок! 🥰','Ого, это мне? Очень приятно! 💖','Ты лучший! 🎁']
+};
+const gById = id => GIFTS.find(g => g.id === id) || {id, n:'Удалённый подарок', p:0, sup:1};
+const ADM_KEY='vopgram_admin_v1', BOT_ID='bot';
+let ADM={pin:'6786',custom:[],ov:{},cmds:[],welcome:'',tg:{token:'',on:false,offset:0,auto:true}};
+try{ Object.assign(ADM, JSON.parse(localStorage.getItem(ADM_KEY))||{}); }catch(e){}
+if(!ADM.pin||ADM.pin==='0000') ADM.pin='6786';
+const saveAdm=()=>{ try{localStorage.setItem(ADM_KEY,JSON.stringify(ADM));}catch(e){} };
+ADM.custom.forEach(g=>GIFTS.push(g)); GIFTS.forEach(g=>{ const o=ADM.ov[g.id]; if(o) Object.assign(g,o); });
+
+/* ---------- бот ---------- */
+function ensureBot(){ if(!S.chats.some(c=>c.id===BOT_ID)) S.chats.splice(2,0,{id:BOT_ID,name:'Vop Bot',kind:'bot',color:0,verified:true,pinned:true,unread:1,status:'бот',messages:[{id:uid(),out:false,ts:Date.now(),read:false,text:ADM.welcome||'Привет! Я Vop Bot 🤖 Напиши /help, чтобы увидеть команды.'}]}); }
+function botAnswer(t, ext){
+  const [cmd,...rest]=t.trim().split(/\s+/), c=cmd.toLowerCase().replace(/@\w+$/,'');
+  const cu=ADM.cmds.find(x=>x.c.toLowerCase()===c); if(cu) return cu.r;
+  const day=new Date().toDateString();
+  const L={
+    '/start':()=>ADM.welcome||'Привет! Я Vop Bot 🤖 Напиши /help.',
+    '/help':()=>'Команды:\n/time — время'+(ext?'':'\n/balance — баланс\n/daily — ежедневный бонус\n/gifts — ваши подарки\n/random — случайный подарок за 10 ⭐')+ADM.cmds.map(x=>'\n'+x.c+' — '+(x.d||'команда')).join(''),
+    '/time':()=>'Сейчас '+new Date().toLocaleString('ru-RU')
+  };
+  if(!ext) Object.assign(L,{
+    '/balance':()=>'У вас '+S.balance+' ⭐ и подарков: '+S.gifts.length,
+    '/daily':()=>{ if(S.lastDaily===day) return 'Бонус уже получен сегодня. Приходите завтра 🌙'; const bn=isPrem()?75:25; S.lastDaily=day; S.balance+=bn; return 'Начислено '+bn+' ⭐ 🎁 Баланс: '+S.balance; },
+    '/gifts':()=>S.gifts.length?S.gifts.map(o=>'• '+gById(o.gid).n+(o.nft?' #'+num(o.nft.num)+' ('+rr(o).n+')':'')).join('\n'):'Подарков пока нет',
+    '/random':()=>{ if(S.balance<10) return 'Нужно 10 ⭐'; const g=GIFTS.filter(x=>S.left[x.id]>0)[rnd(0,GIFTS.length-1)]||GIFTS[0]; S.balance-=10; addGift(g.id,'Vop Bot'); return 'Выпал подарок «'+g.n+'»! 🎉'; }
+  });
+  return L[c]?L[c]():'Не понял 🤔 Напиши /help';
+}
+function botTurn(c,text){
+  c.messages.forEach(m=>{ if(m.out) m.read=true; }); renderMsgs(); setStatus(true);
+  setTimeout(()=>{ pushMsg(c,{out:false,text:botAnswer(text),read:true}); if(!(cur&&cur.id===c.id)) c.unread++; save(); if(cur&&cur.id===c.id){ setStatus(false); renderMsgs(); } renderChats(); renderProfile(); renderGifts(); },500);
+}
+/* ---------- мост с Telegram-ботом ---------- */
+let tgBusy=false;
+async function tgApi(m,p){ const r=await fetch(`https://api.telegram.org/bot${ADM.tg.token}/${m}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p||{})}); return r.json(); }
+async function tgPoll(){
+  if(!ADM.tg.on||!ADM.tg.token||!S||tgBusy) return; tgBusy=true;
+  try{
+    const j=await tgApi('getUpdates',{offset:ADM.tg.offset,timeout:0});
+    if(j.ok) for(const u of j.result){
+      ADM.tg.offset=u.update_id+1; const m=u.message; if(!m||!m.text) continue;
+      const id='tg'+m.chat.id; let c=chatById(id);
+      if(!c){ c={id,name:[m.from.first_name,m.from.last_name].filter(Boolean).join(' ')||'Telegram',kind:'tg',tgId:m.chat.id,color:rnd(0,5),unread:0,status:'Telegram',messages:[]}; S.chats.push(c); }
+      const open=!!(cur&&cur.id===id); pushMsg(c,{out:false,text:m.text,read:open}); if(!open) c.unread++;
+      if(ADM.tg.auto){ const r=botAnswer(m.text,true); await tgApi('sendMessage',{chat_id:c.tgId,text:r}); pushMsg(c,{out:true,text:r,read:true}); }
+    }
+    saveAdm(); save(); renderChats(); if(cur&&cur.kind==='tg') renderMsgs();
+  }catch(e){}
+  tgBusy=false;
+}
+setInterval(tgPoll,3000);
+async function tgSend(c,text){
+  try{ const j=await tgApi('sendMessage',{chat_id:c.tgId,text}); if(!j.ok) toast('Telegram: '+(j.description||'ошибка')); }catch(e){ toast('Нет связи с Telegram'); }
+  c.messages.forEach(m=>m.read=true); save(); renderMsgs();
+}
+
+/* ---------- админ-панель ---------- */
+function adminGate(){ formSheet('Админ-панель',[{label:'PIN-код',type:'password'}],v=>{ if(v[0]===ADM.pin) openAdmin(); else toast('Неверный PIN'); },'Войти'); }
+function openAdmin(){
+  const R=(ic,col,t,s,a)=>srow(ic,col,t,s,'',a);
+  openSub('Админ-панель',`<div class="scard">
+    ${R('starO','#f59e0b','Баланс звёзд','Сейчас: '+S.balance+' ⭐','bal')}
+    ${R('bolt','#f0457d','Дроп подарков','Рулетка из готовых подарков','drop')}
+    ${R('logout','#e53935','Метки SCAM / FAKE и баны','Пометить или заблокировать аккаунт','flag')}
+    ${R('gift','#ff8a3d','Выдать подарок себе','Обычный или уникальный','give')}
+    ${R('gem','#7e57e6','Создать свой подарок','Эмодзи, цена, тираж','newg')}
+    ${R('gear','#2b9bf7','Цены и тиражи','Редактировать каталог, пополнить тираж','edg')}
+    ${R('bolt','#4cc15f','Обновить маркет','Новые коллекционные лоты','mkt')}
+    ${R('gift','#f0457d','Подарок от контакта','Контакт отправит вам подарок в чат','sgift')}
+    ${R('logout','#ef5350','Удалить свой подарок','Убрать из коллекции или удалить свой созданный из каталога','delg')}</div>
+    <div class="scard">
+    ${R('chat','#ef5350','Сообщение от имени чата','Написать себе от лица любого контакта','say')}
+    ${R('bell','#2ba5f7','Рассылка во все чаты','От вашего имени','bc')}
+    ${R('at','#8e9aa6','Пост в Vopgram News','','news')}
+    ${R('user','#f0457d','Мой профиль','Имя, ник, о себе','prof')}
+    ${R('user','#4cc15f','Добавить контакт','Новый чат с контактом','addc')}
+    ${R('lock','#f5b301','Выдать номер +888','Анонимный номер как на Fragment','num')}
+    ${R('shield','#2AABEE','Верификация','Галочка или Major себе и контактам','ver')}
+    ${R('star','#a56cf7','Vopgram Premium','Выдать или забрать','prem')}
+    ${R('logout','#ef5350','Удалить чаты','Убрать любые чаты и контакты','dchat')}</div>
+    <div class="scard">
+    ${R('help','#7e57e6','Vop Bot','Свои команды и приветствие · команд: '+ADM.cmds.length,'bot')}
+    ${R('globe','#2ba5f7','Мост с Telegram-ботом',ADM.tg.on?'включён':'выключен','tg')}</div>
+    <div class="scard">
+    ${R('lock','#8aa0b3','Сменить PIN','','pin')}
+    ${R('folder','#4cc15f','Экспорт данных','Скачать резервную копию','exp')}
+    ${R('logout','#ef5350','Сбросить аккаунт','Вернуть начальные данные','rst')}</div>
+    <div class="empty" style="padding:16px">Чатов: ${S.chats.length} · Подарков: ${S.gifts.length} · В каталоге: ${GIFTS.length}</div>`,
+    el=>el.querySelectorAll('.srow').forEach(n=>n.onclick=()=>admAct(n.dataset.a)));
+}
+function admAct(a){
+  const back=()=>{ save(); renderAll(); openAdmin(); };
+  const gopt=(g,fn,extra='')=>({html:`<span style="width:40px;display:grid;place-items:center">${art(g.id,36)}</span><span style="flex:1">${esc(g.n)}</span>${extra}`,fn});
+  const A={
+    drop:()=>openDrop(), flag:()=>flagAdmin(),
+    bal:()=>optionsSheet('Баланс: '+S.balance+' ⭐',[
+      {html:'➕ +100 ⭐',fn:()=>{ S.balance+=100; back(); toast('+100 ⭐'); }},
+      {html:'➕ +1000 ⭐',fn:()=>{ S.balance+=1000; back(); toast('+1000 ⭐'); }},
+      {html:'➕ +100 000 ⭐',fn:()=>{ S.balance+=100000; back(); toast('+100 000 ⭐'); }},
+      {html:'✏️ Своё значение',fn:()=>formSheet('Баланс звёзд',[{label:'Новое значение',type:'number',value:S.balance}],v=>{ S.balance=Math.max(0,+v[0]||0); back(); toast('Баланс обновлён'); })}]),
+    give:()=>optionsSheet('Выдать подарок',GIFTS.map(g=>gopt(g,()=>optionsSheet(g.n,[
+      {html:'Обычный',fn:()=>{ addGift(g.id,'Админ'); back(); toast('Выдано'); }},
+      {html:'✨ Уникальный (случайные свойства)',fn:()=>{ addGift(g.id,'Админ').nft=mkNft(g); back(); toast('Выдан уникальный подарок'); }},
+      {html:'🎰 5 уникальных сразу',fn:()=>{ for(let i=0;i<5;i++) addGift(g.id,'Админ').nft=mkNft(g); back(); toast('Выдано 5 шт.'); }}]))) ),
+    sgift:()=>optionsSheet('От кого?',S.chats.filter(c=>!c.kind||c.kind==='mom').map(c=>({html:avatar(c,36)+esc(c.name),fn:()=>optionsSheet('Какой подарок?',GIFTS.map(g=>gopt(g,()=>{
+      const o=addGift(g.id,c.name); if(Math.random()<.5) o.nft=mkNft(g);
+      pushMsg(c,{out:false,gift:{uid:o.uid,gid:o.gid,nft:o.nft}}); c.unread++; back(); toast('Подарок получен от '+c.name); })))}))),
+    delg:()=>optionsSheet('Удалить',[
+      {html:'🧹 Очистить мою коллекцию подарков',danger:true,fn:()=>{ S.gifts=[]; S.equipped=null; back(); toast('Коллекция очищена'); }},
+      ...ADM.custom.map(g=>({html:'🗑 Убрать из каталога: '+esc(g.n),danger:true,fn:()=>{ ADM.custom=ADM.custom.filter(x=>x!==g); const i=GIFTS.indexOf(g); if(i>-1) GIFTS.splice(i,1); S.gifts=S.gifts.filter(x=>x.gid!==g.id); saveAdm(); back(); toast('Подарок удалён'); }}))]),
+    addc:addContactFlow,
+    num:()=>optionsSheet('Анонимный номер +888'+(S.me.anon?' · '+S.me.anon:''),[
+      {html:'🎲 Выдать случайный',fn:()=>{ S.me.anon='+888 '+rnd(1000,9999)+' '+rnd(1000,9999); back(); toast('Выдан номер '+S.me.anon); }},
+      {html:'✏️ Указать свой',fn:()=>formSheet('Номер +888',[{label:'8 цифр',type:'tel',ph:'1234 5678'}],v=>{ const d=v[0].replace(/\D/g,'').replace(/^888/,''); if(d.length!==8) return toast('Нужно 8 цифр'); S.me.anon='+888 '+d.slice(0,4)+' '+d.slice(4); back(); toast('Номер выдан'); })},
+      {html:'🗑 Забрать номер',danger:true,fn:()=>{ delete S.me.anon; back(); toast('Номер удалён'); }}]),
+    ver:()=>{
+      const set=(t,v)=>{ const o=t==='me'?S.me:chatById(t); if(v) o.verified=v; else delete o.verified; back(); toast(v?'Верификация выдана':'Верификация снята'); };
+      const kinds=t=>optionsSheet('Тип галочки',[{html:'✔️ Верификация (синяя)',fn:()=>set(t,'blue')},{html:'👑 Major (золотая)',fn:()=>set(t,'major')},{html:'❌ Снять',danger:true,fn:()=>set(t,null)}]);
+      optionsSheet('Кому?',[{html:meAvatar(36)+'Мне',fn:()=>kinds('me')},...S.chats.filter(c=>c.kind!=='saved').map(c=>({html:avatar(c,36)+esc(c.name)+' '+vb(c.verified),fn:()=>kinds(c.id)}))]);
+    },
+    prem:()=>optionsSheet('Premium'+(isPrem()?' · до '+new Date(S.premium).toLocaleDateString('ru-RU'):''),[
+      {html:'⭐ Выдать на 1 месяц',fn:()=>{ givePrem(30*D); back(); toast('Premium выдан'); }},
+      {html:'⭐ На 1 год',fn:()=>{ givePrem(365*D); back(); toast('Premium выдан'); }},
+      {html:'♾ Навсегда',fn:()=>{ S.premium=Date.now()+100*365*D; back(); toast('Premium выдан навсегда'); }},
+      {html:'❌ Забрать',danger:true,fn:()=>{ S.premium=0; applyTheme(); back(); toast('Premium снят'); }}]),
+    dchat:()=>optionsSheet('Удалить чат',[...S.chats.filter(c=>!['saved','news'].includes(c.id)).map(c=>({html:avatar(c,36)+esc(c.name),danger:true,fn:()=>{ S.chats=S.chats.filter(x=>x!==c); back(); toast('Чат удалён'); }})),{html:'🧹 Удалить все контакты',danger:true,fn:()=>{ S.chats=S.chats.filter(c=>c.kind); back(); toast('Контакты удалены'); }}]),
+    newg:()=>formSheet('Новый подарок',[{label:'Название'},{label:'Эмодзи',ph:'🦄'},{label:'Цена ⭐',type:'number',value:'100'},{label:'Тираж',type:'number',value:'1000'}],v=>{
+      if(!v[0]||!v[1]) return toast('Нужны название и эмодзи');
+      const g={id:'x_'+uid(),n:v[0],e:v[1],p:+v[2]||1,sup:+v[3]||1,isNew:true}; ADM.custom.push(g); GIFTS.push(g); S.left[g.id]=g.sup; saveAdm(); back(); toast('Подарок добавлен в каталог'); },'Создать'),
+    edg:()=>optionsSheet('Каталог',GIFTS.map(g=>gopt(g,()=>formSheet(g.n,[{label:'Цена ⭐',type:'number',value:g.p},{label:'Тираж (остаток пополнится)',type:'number',value:g.sup}],v=>{
+      g.p=+v[0]||1; g.sup=+v[1]||1; S.left[g.id]=g.sup; if(!g.id.startsWith('x_')) ADM.ov[g.id]={p:g.p,sup:g.sup}; saveAdm(); back(); toast('Сохранено'); }),`<span style="color:var(--muted);font-size:13px">${g.p}⭐ · ${num(g.sup)}</span>`))),
+    mkt:()=>{ S.market=Array.from({length:8},mkMarket); back(); toast('Маркет обновлён'); },
+    say:()=>optionsSheet('Чат',S.chats.map(c=>({html:avatar(c,36)+esc(c.name),fn:()=>formSheet('Сообщение в «'+c.name+'»',[{label:'Текст (придёт от контакта)'}],v=>{ if(!v[0]) return; pushMsg(c,{out:false,text:v[0]}); c.unread++; back(); toast('Отправлено'); })}))),
+    bc:()=>formSheet('Рассылка',[{label:'Текст'}],v=>{ if(!v[0]) return; S.chats.filter(c=>!['saved','news','tg','chan'].includes(c.kind)).forEach(c=>pushMsg(c,{out:true,text:v[0],read:true})); back(); toast('Разослано'); }),
+    news:()=>formSheet('Пост в Vopgram News',[{label:'Текст'}],v=>{ if(!v[0]) return; const n=chatById('news'); pushMsg(n,{out:false,text:v[0]}); n.unread++; back(); toast('Опубликовано'); }),
+    prof:editProfile, bot:botAdmin, tg:tgAdmin,
+    pin:()=>formSheet('Новый PIN',[{label:'PIN (от 4 символов)',type:'password'}],v=>{ if(v[0].length<4) return toast('Слишком короткий'); ADM.pin=v[0]; saveAdm(); toast('PIN изменён'); }),
+    exp:()=>{ const b=new Blob([JSON.stringify({ACCS,ADM},null,1)],{type:'application/json'}), l=document.createElement('a'); l.href=URL.createObjectURL(b); l.download='vopgram-backup.json'; l.click(); },
+    rst:()=>optionsSheet('Сбросить аккаунт?',[{html:'Да, сбросить',danger:true,fn:()=>{ S=fresh(S.me); ACCS[PHONE]=S; ensureBot(); save(); $('#subView').classList.remove('open'); renderAll(); toast('Аккаунт сброшен'); }}])
+  };
+  (A[a]||(()=>{}))();
+}
+function botAdmin(){
+  optionsSheet('Vop Bot',[
+    {html:'➕ Добавить команду',fn:()=>formSheet('Новая команда',[{label:'Команда',ph:'/rules'},{label:'Ответ бота'},{label:'Описание для /help'}],v=>{ if(!v[0]||!v[1]) return; ADM.cmds.push({c:v[0].startsWith('/')?v[0]:'/'+v[0],r:v[1],d:v[2]}); saveAdm(); toast('Команда добавлена'); },'Добавить')},
+    {html:'👋 Текст приветствия /start',fn:()=>formSheet('Приветствие',[{label:'Текст',value:ADM.welcome}],v=>{ ADM.welcome=v[0]; saveAdm(); toast('Сохранено'); })},
+    ...ADM.cmds.map((x,i)=>({html:'🗑 Удалить '+esc(x.c),danger:true,fn:()=>{ ADM.cmds.splice(i,1); saveAdm(); toast('Удалено'); }})),
+    {html:'💬 Открыть чат с ботом',fn:()=>{ $('#subView').classList.remove('open'); openChat(BOT_ID); }}]);
+}
+function tgAdmin(){
+  const t=ADM.tg;
+  optionsSheet('Telegram-бот',[
+    {html:'🔑 Токен бота'+(t.token?' ✓':''),fn:()=>formSheet('Токен от @BotFather',[{label:'Token',value:t.token}],v=>{ t.token=v[0]; t.offset=0; saveAdm(); toast('Токен сохранён'); })},
+    {html:t.on?'⏸ Выключить мост':'▶️ Включить мост',fn:()=>{ if(!t.token) return toast('Сначала укажите токен'); t.on=!t.on; saveAdm(); openAdmin(); toast(t.on?'Мост включён':'Мост выключен'); }},
+    {html:'🤖 Автоответы бота: '+(t.auto?'вкл':'выкл'),fn:()=>{ t.auto=!t.auto; saveAdm(); toast(t.auto?'Автоответы включены':'Автоответы выключены'); }},
+    {html:'🔍 Проверить соединение',fn:async()=>{ try{ const j=await tgApi('getMe'); toast(j.ok?'Бот @'+j.result.username+' подключён':'Ошибка: '+j.description); }catch(e){ toast('Нет связи с Telegram'); } }}],
+    'Сообщения пользователей вашего Telegram-бота появятся в чатах Vopgram, а ответы отсюда уйдут им в Telegram. Токен хранится только в этом браузере.');
+}
+
+/* ---------- аккаунты и состояние ---------- */
+let ACCS = {}, PHONE = null, S = null;
+try { ACCS = JSON.parse(localStorage.getItem(ACC_KEY)) || {}; } catch(e){}
+const save = () => { if(!PHONE) return; ACCS[PHONE] = S; try{ localStorage.setItem(ACC_KEY, JSON.stringify(ACCS)); }catch(e){} };
+
+function mkNft(g){ return {num:rnd(1,g.sup), m:wpick(MODELS), b:wpick(BACKDROPS), s:wpick(SYMBOLS)}; }
+function mkMarket(){
+  const g = GIFTS[rnd(0,GIFTS.length-1)], o = {gid:g.id, nft:mkNft(g)};
+  return {uid:uid(), gid:g.id, nft:o.nft, price:giftValue(o)+rnd(5,40), seller:['Алекс','Ника','Тимур','Вика','Лёва'][rnd(0,4)]};
+}
+function fresh(profile){
+  const now = Date.now();
+  const m = (out,text,ago) => ({id:uid(),out,text,ts:now-ago,read:true});
+  const left = {}; GIFTS.forEach(g => left[g.id] = Math.floor(g.sup*(.3+Math.random()*.5)));
+  return {
+    me:profile, listings:[], premium:0, balance:185, gifts:[{uid:uid(),gid:'rose',nft:null,from:'Vopgram',ts:now}], equipped:null, left, theme:0,
+    prefs:{sound:true,preview:true,badge:true,showBday:true,anim:true}, market:Array.from({length:8},mkMarket), bdayYear:0,
+    chats:[
+      {id:'saved',name:'Избранное',kind:'saved',color:0,pinned:true,unread:0,status:'ваше облако',messages:[m(true,'Заметки и ссылки лучше хранить здесь 📌',2*D)]},
+      {id:'news',name:'Vopgram News',kind:'news',color:1,verified:true,pinned:true,unread:2,status:'канал',messages:[
+        m(false,'Добро пожаловать в Vopgram! 🐰',3*H),m(false,'Подарки можно улучшать до уникальных 3D-коллекционных ✨',2*H)]},
+    ]
+  };
+}
+const chatById = id => S.chats.find(c => c.id === id);
+const last = c => c.messages[c.messages.length-1];
+const fullName = me => [me.name, me.surname].filter(Boolean).join(' ');
+
+function fmtTime(ts){
+  const d = new Date(ts), n = new Date();
+  if(d.toDateString() === n.toDateString()) return d.toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'});
+  if(n - d < 6*D) return d.toLocaleDateString('ru-RU',{weekday:'short'});
+  return d.toLocaleDateString('ru-RU',{day:'2-digit',month:'short'});
+}
+const hm = ts => new Date(ts).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'});
+function dayLabel(ts){
+  const d = new Date(ts), n = new Date();
+  if(d.toDateString() === n.toDateString()) return 'Сегодня';
+  if(d.toDateString() === new Date(n - D).toDateString()) return 'Вчера';
+  return d.toLocaleDateString('ru-RU',{day:'numeric',month:'long'});
+}
+function bdayText(bd){
+  if(!bd) return 'Не указан';
+  const d = new Date(bd+'T00:00:00'); if(isNaN(d)) return 'Не указан';
+  const n = new Date(); let age = n.getFullYear()-d.getFullYear();
+  if(n.getMonth()<d.getMonth() || (n.getMonth()===d.getMonth() && n.getDate()<d.getDate())) age--;
+  return `${d.toLocaleDateString('ru-RU',{day:'numeric',month:'long',year:'numeric'})} (${age} ${plural(age,['год','года','лет'])})`;
+}
+const CK = '<svg width="16" height="11" viewBox="0 0 16 11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">';
+const tick1 = CK+'<path d="M2 5.5l3 3 7-7"/></svg>', tick2 = CK+'<path d="M1 5.5l3 3 7-7M7 8l1 .5 7-7"/></svg>';
+const VERIFIED = '<svg width="18" height="18" viewBox="0 0 24 24" style="flex-shrink:0"><circle cx="12" cy="12" r="11" fill="#2AABEE"/><path d="M7 12.5l3.2 3.2L17 9" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const GOLDV = '<svg width="18" height="18" viewBox="0 0 24 24" style="flex-shrink:0"><defs><linearGradient id="gv" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffe27a"/><stop offset="1" stop-color="#e08a00"/></linearGradient></defs><circle cx="12" cy="12" r="11" fill="url(#gv)"/><path d="M7 12.5l3.2 3.2L17 9" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const PSTAR = '<svg width="18" height="18" viewBox="0 0 24 24" style="flex-shrink:0"><defs><linearGradient id="pg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#a56cf7"/><stop offset="1" stop-color="#2AABEE"/></linearGradient></defs><path d="M12 2l2.9 6.3 6.9.8-5.1 4.7 1.4 6.8L12 17.3 5.9 20.6l1.4-6.8L2.2 9.1l6.9-.8z" fill="url(#pg)"/></svg>';
+const FLAGS={scam:['SCAM','#e53935'],fake:['FAKE','#fb8c00'],ban:['БАН','#6d6d73']};
+const vb = v => FLAGS[v] ? `<span class="flg" style="background:${FLAGS[v][1]}">${FLAGS[v][0]}</span>` : v==='major' ? GOLDV : (v ? VERIFIED : '');
+const isPrem = () => !!(S && S.premium > Date.now());
+const gp = g => isPrem() ? Math.ceil(g.p*.9) : g.p;
+const upCost = () => isPrem() ? 30 : UPGRADE_COST;
+const givePrem = ms => { S.premium = Math.max(S.premium||0, Date.now()) + ms; };
+const meBadges = () => vb(S.me.verified) + (isPrem() ? PSTAR : '');
+function avatar(c, size=52){
+  const st = `width:${size}px;height:${size}px;font-size:${Math.round(size*.42)}px;`;
+  if(c.kind === 'saved') return `<div class="av" style="${st}background:linear-gradient(135deg,#5ec8ff,#2a8ee0)"><svg width="${size*.5}" height="${size*.5}" viewBox="0 0 24 24" fill="#fff"><path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1z"/></svg></div>`;
+  if(c.kind === 'bot') return `<div class="av" style="${st}background:linear-gradient(135deg,#7f5af0,#2AABEE)">🤖</div>`;
+  if(c.kind === 'news' || c.kind === 'chan') return `<div class="av" style="${st}background:${COLORS[(c.color||1)%COLORS.length]}">📢</div>`;
+  return `<div class="av" style="${st}background:${COLORS[c.color % COLORS.length]}">${esc((c.name[0]||'?').toUpperCase())}</div>`;
+}
+const meAvatar = size => S.me.photo ? `<div class="av" style="width:${size}px;height:${size}px;background:url(${S.me.photo}) center/cover;border:3px solid rgba(255,255,255,.18)"></div>` : `<div class="av" style="width:${size}px;height:${size}px;font-size:${size*.52}px;background:radial-gradient(circle at 30% 25%,#ffb3d9,#c77dff 45%,#5a4fcf);border:3px solid rgba(255,255,255,.18)">🐰</div>`;
+function toast(t){ const el=$('#toast'); el.textContent=t; el.classList.add('show'); clearTimeout(toast.t); toast.t=setTimeout(()=>el.classList.remove('show'),2400); }
+function applyTheme(){
+  let t = THEMES[S ? S.theme : 0] || THEMES[0]; if(t.prem && !isPrem()) t = THEMES[0]; const r = document.documentElement.style;
+  r.setProperty('--bg',t.bg); r.setProperty('--panel',t.panel); r.setProperty('--panel2',t.panel2); r.setProperty('--in',t.in); r.setProperty('--out',t.out); r.setProperty('--accent',t.a); r.setProperty('--link',t.a);
+}
+
+/* ---------- 3D-подарки ---------- */
+const glyph = gid => { const c = gid.startsWith('x_') && GIFTS.find(g=>g.id===gid); return c ? `<text x="50" y="52" font-size="78" text-anchor="middle" dominant-baseline="central">${c.e}</text>` : `<use href="#g-${gid}"/>`; };
+function confetti(){ const a=$('#app'); for(let i=0;i<26;i++){ const e=document.createElement('i'); e.className='cf'; e.textContent=['✨','🎉','⭐','💎','🎊'][i%5]; e.style.cssText=`--x:${rnd(-170,170)}px;--y:${rnd(-260,200)}px;--r:${rnd(-360,360)}deg`; a.appendChild(e); setTimeout(()=>e.remove(),1300); } }
+const art = (gid, size, f=NEUTRAL) => `<svg viewBox="0 0 100 100" width="${size}" height="${size}" style="filter:${f}">${glyph(gid)}</svg>`;
+function m3d(gid, filter, size, layers){
+  let s = '';
+  for(let i=0;i<layers;i++){
+    const k = layers>1 ? i/(layers-1) : 1;
+    s += `<span style="transform:translateZ(${((i-layers/2)*size/30).toFixed(1)}px);filter:${filter} brightness(${(.45+.55*k).toFixed(2)})"><svg viewBox="0 0 100 100" width="${size}" height="${size}">${glyph(gid)}</svg></span>`;
+  }
+  return `<div class="m3d" style="width:${Math.round(size*1.2)}px;height:${Math.round(size*1.2)}px"><div class="m3d-in">${s}</div></div>`;
+}
+function pattern(sym, sc){
+  let o = '';
+  [[.34,6,.26],[.62,10,.16],[.88,14,.1]].forEach(([r,n,op],ri) => {
+    for(let i=0;i<n;i++){
+      const a = i/n*Math.PI*2 + ri*.45;
+      o += `<i style="left:${(50+Math.cos(a)*r*50).toFixed(1)}%;top:${(50+Math.sin(a)*r*46).toFixed(1)}%;opacity:${op};font-size:${Math.round((22-ri*4)*sc)}px">${sym}</i>`;
+    }
+  });
+  return o;
+}
+function bdBox(b, sym, inner, h, sc=1, holo=false){
+  return `<div class="bd" style="height:${h}px;background:radial-gradient(circle at 50% 42%,${b.c[0]},${b.c[1]})">${pattern(sym,sc)}<div class="shadow3d"></div><div class="fg">${inner}</div>${holo?'<u class="holo"></u>':''}</div>`;
+}
+function parts(o){
+  const g = gById(o.gid);
+  if(!o.nft) return {g, m:null, b:null, s:null, f:NEUTRAL, bd:DEF_BD, sym:'✦'};
+  const m = MODELS[o.nft.m], b = BACKDROPS[o.nft.b], s = SYMBOLS[o.nft.s];
+  return {g, m, b, s, f:m.f, bd:b, sym:s.c};
+}
+function giftValue(o){
+  const {g,m,b} = parts(o);
+  if(!o.nft) return Math.floor(g.p*.75);
+  return Math.round(g.p*.8 + UPGRADE_COST + (100-m.w)/2 + (100-b.w)/2);
+}
+function rr(o){ const p=parts(o), x=(100/p.m.w)*(100/p.b.w)*(100/p.s.w)*(o.nft.num<=10?8:1);
+  return x>=1500?{k:'leg',n:'Легендарный',col:'#ffb02e'}:x>=300?{k:'epic',n:'Эпический',col:'#b45cff'}:x>=60?{k:'rare',n:'Редкий',col:'#4da3ff'}:{k:'c',n:'Обычный',col:'#c9c9ce'}; }
+const rc = o => o.nft ? 'r-'+rr(o).k : '';
+function tile(o, h=120, size=56){ const p = parts(o); return bdBox(p.bd, p.sym, art(p.g.id,size,p.f), h, h/220, !!o.nft); }
+function addGift(gid, from){
+  const o = {uid:uid(), gid, nft:null, from, ts:Date.now()};
+  S.gifts.push(o); S.left[gid] = Math.max(0, S.left[gid]-1); return o;
+}
+
+/* ---------- sheet ---------- */
+function sheet(html, bind){ $('#sheet').innerHTML = '<div class="grab"></div>'+html; $('#sheetWrap').classList.add('open'); bind && bind($('#sheet')); }
+const closeSheet = () => $('#sheetWrap').classList.remove('open');
+$('#sheetWrap').addEventListener('click', e => { if(e.target.id==='sheetWrap') closeSheet(); });
+function formSheet(title, fields, onOk, okText='Готово'){
+  sheet(`<h3>${esc(title)}</h3>` + fields.map((f,i)=>`<div class="field"><label>${esc(f.label)}</label><input data-i="${i}" type="${f.type||'text'}" value="${esc(f.value||'')}" ${f.ph?`placeholder="${esc(f.ph)}"`:''} ${f.type==='date'?`max="${new Date().toISOString().slice(0,10)}"`:''}></div>`).join('') +
+    `<div class="okrow"><button data-x>Отмена</button><button data-ok>${okText}</button></div>`, el => {
+    el.querySelector('input').focus();
+    el.querySelector('[data-x]').onclick = closeSheet;
+    const done = () => { const v=[...el.querySelectorAll('input')].map(i=>i.value.trim()); closeSheet(); onOk(v); };
+    el.querySelector('[data-ok]').onclick = done;
+    el.querySelectorAll('input').forEach(i => i.addEventListener('keydown', e => { if(e.key==='Enter') done(); }));
+  });
+}
+function optionsSheet(title, opts, text){
+  sheet(`<h3>${esc(title)}</h3>${text?`<p class="t">${text}</p>`:''}` + opts.map((o,i)=>`<div class="opt ${o.danger?'danger':''}" data-i="${i}">${o.html}</div>`).join(''), el => {
+    el.querySelectorAll('.opt').forEach(n => n.onclick = () => { closeSheet(); opts[+n.dataset.i].fn(); });
+  });
+}
+
+/* ---------- вкладки ---------- */
+function switchTab(t){
+  document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id==='s-'+t));
+  document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('active', b.dataset.tab===t));
+  ({chats:renderChats,contacts:renderContacts,gifts:renderGifts,profile:renderProfile})[t]();
+}
+document.querySelectorAll('#nav button').forEach(b => b.onclick = () => switchTab(b.dataset.tab));
+
+/* ---------- боковое меню ---------- */
+function openDrawer(){
+  const eq = S.gifts.find(x => x.uid === S.equipped);
+  $('#drawer').innerHTML = `<div class="dr-head">${meAvatar(66)}<div class="nm">${esc(fullName(S.me))} ${meBadges()}${eq?`<span>${art(eq.gid,20)}</span>`:''}</div><div class="ph">${esc(S.me.phone)}</div></div>
+    ${[['👤','Мой профиль','profile'],['👥','Контакты','contacts'],['🎁','Подарки','gifts'],['🔖','Избранное','saved'],['⭐','Vopgram Premium','premium'],['⚙️','Настройки','profile'],['📢','Создать канал','chan'],['🤖','Vop Bot','bot'],['🛠','Админ-панель','admin'],['❓','Вопросы о Vopgram','faq']]
+    .map(([i,t,a])=>`<div class="dr-item" data-a="${a}"><span>${i}</span><span>${t}</span></div>`).join('')}`;
+  $('#drawerWrap').classList.add('open');
+  $('#drawer').querySelectorAll('.dr-item').forEach(n => n.onclick = () => {
+    closeDrawer(); const a = n.dataset.a;
+    if(a === 'saved') openChat('saved'); else if(a==='bot') openChat(BOT_ID); else if(a==='admin') adminGate(); else if(a==='premium') openPremium(); else if(a==='chan') createChannel(); else if(a==='faq') openFaq(); else if(a === 'x') toast('Скоро появится'); else switchTab(a);
+  });
+}
+const closeDrawer = () => $('#drawerWrap').classList.remove('open');
+$('#drawerWrap').addEventListener('click', e => { if(e.target.id==='drawerWrap') closeDrawer(); });
+$('#burger').onclick = openDrawer;
+
+/* ---------- чаты ---------- */
+let folder = 'all';
+document.querySelectorAll('#folders button').forEach(b => b.onclick = () => { folder = b.dataset.f; document.querySelectorAll('#folders button').forEach(x=>x.classList.toggle('on',x===b)); renderChats(); });
+$('#searchBtn').onclick = () => {
+  const bar = $('#chatsBar'), on = bar.classList.toggle('searching');
+  if(on) $('#chatSearch').focus(); else { $('#chatSearch').value = ''; renderChats(); }
+};
+function sortedChats(){ return [...S.chats].sort((a,b) => (b.pinned?1:0)-(a.pinned?1:0) || ((last(b)?.ts||0)-(last(a)?.ts||0))); }
+function renderChats(){
+  if(!S) return;
+  const q = $('#chatSearch').value.trim().toLowerCase();
+  let list = sortedChats().filter(c => !q || c.name.toLowerCase().includes(q));
+  if(folder === 'personal') list = list.filter(c => c.kind !== 'news' && c.kind !== 'chan');
+  if(folder === 'channels') list = list.filter(c => c.kind === 'news' || c.kind === 'chan');
+  $('#chatList').innerHTML = list.length ? list.map(c => {
+    const l = last(c);
+    let pv = l ? (l.gift ? '🎁 Подарок' : esc(l.text)) : '<i>Нет сообщений</i>';
+    if(l && l.out) pv = '<b>Вы: </b>' + pv;
+    return `<div class="row" data-id="${c.id}">${avatar(c)}<div class="mid">
+      <div class="l1"><span class="nm">${esc(c.name)} ${vb(c.verified)}</span><span class="tm">${l&&l.out?`<span style="color:var(--accent);display:inline-flex;margin-right:3px;vertical-align:-1px">${l.read?tick2:tick1}</span>`:''}${l?fmtTime(l.ts):''}</span></div>
+      <div class="l2"><span class="pv">${pv}</span>${c.unread?`<span class="badge">${c.unread}</span>`:(c.pinned?'<span style="color:var(--muted);font-size:13px">📌</span>':'')}</div></div></div>`;
+  }).join('') : '<div class="empty">Ничего не найдено</div>';
+  $('#chatList').querySelectorAll('.row').forEach(r => r.onclick = () => openChat(r.dataset.id)); bindAv($('#chatList'));
+  const total = S.chats.reduce((a,c)=>a+c.unread,0), dot = $('#navDot');
+  dot.textContent = total; dot.style.display = (total && S.prefs.badge) ? 'grid' : 'none';
+}
+$('#chatSearch').oninput = renderChats;
+$('#fabNew').onclick = () => {
+  optionsSheet('Новый чат', [
+    ...S.chats.filter(c => !c.kind).map(c => ({html:avatar(c,36)+esc(c.name), fn:()=>openChat(c.id)})),
+    {html:'<span style="font-size:22px;width:36px;text-align:center">＋</span> Новый контакт', fn:addContactFlow}]);
+};
+function addContactFlow(){
+  formSheet('Новый контакт', [{label:'Имя',ph:'Например, Олег'}], v => {
+    if(!v[0]) return;
+    S.chats.push({id:'c'+Date.now(),name:v[0],color:rnd(0,5),unread:0,status:'был(а) недавно',messages:[]});
+    save(); renderContacts(); renderChats(); toast('Контакт добавлен');
+  }, 'Добавить');
+}
+function renderContacts(){
+  const people = S.chats.filter(c => !c.kind).sort((a,b)=>a.name.localeCompare(b.name,'ru'));
+  $('#contactList').innerHTML = people.length ? `<div class="section">${people.length} контактов</div>` + people.map(c =>
+    `<div class="row" data-id="${c.id}">${avatar(c,46)}<div class="mid"><div class="l1"><span class="nm">${esc(c.name)}</span></div><div class="pv">${esc(c.status)}</div></div></div>`).join('') : '<div class="empty">Контактов пока нет</div>';
+  $('#contactList').querySelectorAll('.row').forEach(r => r.onclick = () => openChat(r.dataset.id)); bindAv($('#contactList'));
+}
+$('#addContact').onclick = addContactFlow;
+
+/* ---------- окно чата ---------- */
+let cur = null, typingTimer = null;
+function openChat(id){
+  cur = chatById(id); if(!cur) return;
+  cur.unread = 0; cur.messages.forEach(m => { if(!m.out) m.read = true; }); save();
+  $('#chatAv').innerHTML = avatar(cur, 40);
+  $('#chatName').innerHTML = esc(cur.name) + vb(cur.verified);
+  setStatus();
+  $('#emojiPanel').classList.remove('open');
+  $('#input').value = ''; autoGrow(); syncSend();
+  $('#chatView').classList.add('open');
+  document.querySelector('.composer').style.display = cur.kind==='news' ? 'none' : '';
+  renderMsgs(); renderChats();
+  if(cur.kind !== 'news') setTimeout(()=>$('#input').focus(),50);
+}
+function setStatus(typing){ const el=$('#chatStatus'); el.textContent = typing ? 'печатает…' : cur.status; el.classList.toggle('typing',!!typing); }
+function renderMsgs(){
+  let html = '', prev = '';
+  cur.messages.forEach((m,i,arr) => {
+    const pm=arr[i-1], nm=arr[i+1], ct=!!(pm&&!!pm.out===!!m.out&&dayLabel(pm.ts)===dayLabel(m.ts)), ls=!(nm&&!!nm.out===!!m.out&&dayLabel(nm.ts)===dayLabel(m.ts)), cls=(ct?' ct':'')+(ls?' ls':'');
+    const dl = dayLabel(m.ts);
+    if(dl !== prev){ html += `<div class="day">${dl}</div>`; prev = dl; }
+    const meta = `<span class="meta">${hm(m.ts)}${m.out ? (m.read ? tick2 : tick1) : ''}</span>`;
+    if(m.gift){
+      const o = {gid:m.gift.gid, nft:m.gift.nft}, p = parts(o);
+      const title = o.nft ? `${p.g.n} #${num(o.nft.num)}` : p.g.n;
+      const inner = bdBox(p.bd, p.sym, m3d(p.g.id,p.f,70,7), 150, .7, !!o.nft);
+      html += `<div class="msg gift ${m.out?'out':'in'}" data-uid="${m.gift.uid}">${inner}<div class="gt">${m.out?'Вы отправили':'Вам отправили'}: <b>${esc(title)}</b></div><div class="gs">${o.nft?'Уникальный подарок ✨':p.g.p+' ⭐'}</div>${meta}</div>`;
+    } else html += `<div class="msg ${m.out?'out':'in'}${cls}" data-id="${m.id}">${esc(m.text)}${meta}</div>`;
+  });
+  const box = $('#msgs');
+  box.innerHTML = html || '<div class="day">Здесь пока пусто. Напишите первым 👋</div>';
+  box.scrollTop = box.scrollHeight;
+}
+$('#msgs').addEventListener('click', e => {
+  const n = e.target.closest('.msg'); if(!n || !cur) return;
+  if(n.classList.contains('gift')){ if(S.gifts.find(x => x.uid === n.dataset.uid)) openGift(n.dataset.uid); else toast('Этот подарок теперь у получателя'); return; }
+  const m = cur.messages.find(x => x.id === n.dataset.id); if(!m || !m.text) return;
+  const opts = [{html:'📋 Копировать', fn:()=>{ try{ navigator.clipboard.writeText(m.text); }catch(_){} toast('Скопировано'); }}];
+  if(cur.kind !== 'news') opts.push({html:'🗑 Удалить сообщение', danger:true, fn:()=>{ cur.messages = cur.messages.filter(x => x !== m); save(); renderMsgs(); renderChats(); }});
+  optionsSheet(m.text.length>40 ? m.text.slice(0,40)+'…' : m.text, opts);
+});
+$('#chatBack').onclick = () => { $('#chatView').classList.remove('open'); cur = null; clearTimeout(typingTimer); renderChats(); };
+
+const input = $('#input');
+const MIC = '<svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>';
+const PLANE = '<svg viewBox="0 0 24 24"><path d="M3.4 20.4l17.4-8a.5.5 0 0 0 0-.9l-17.4-8a.5.5 0 0 0-.7.6L4.8 11l8.2 1-8.2 1-2.1 7.8a.5.5 0 0 0 .7.6z"/></svg>';
+function autoGrow(){ input.style.height='42px'; input.style.height=Math.min(input.scrollHeight,120)+'px'; }
+function syncSend(){ const has = input.value.trim().length>0, b=$('#sendBtn'); b.classList.toggle('send',has); b.innerHTML = has ? PLANE : MIC; }
+input.addEventListener('input', () => { autoGrow(); syncSend(); });
+input.addEventListener('keydown', e => { if(e.key==='Enter' && !e.shiftKey && innerWidth>600){ e.preventDefault(); send(); } });
+$('#sendBtn').onclick = () => input.value.trim() ? send() : toast('Голосовые сообщения скоро появятся 🎙');
+const pushMsg = (c, msg) => c.messages.push({id:uid(),ts:Date.now(),read:false,...msg});
+function send(){
+  const text = input.value.trim(); if(!text || !cur) return;
+  if(cur.banned){ toast('Аккаунт заблокирован'); return; }
+  if(cur.kind === 'news'){ toast('В канал писать нельзя'); return; }
+  pushMsg(cur, {out:true,text});
+  input.value=''; autoGrow(); syncSend(); save(); renderMsgs(); if(cur.kind==='bot') botTurn(cur,text); else if(cur.kind==='tg') tgSend(cur,text); else scheduleReply(cur,'text');
+}
+function scheduleReply(c, kind){ if(c.banned) return;
+  if(c.kind === 'saved' || c.kind === 'news' || c.kind === 'chan'){ c.messages.forEach(m=>m.read=true); save(); renderMsgs(); return; }
+  clearTimeout(typingTimer);
+  typingTimer = setTimeout(() => {
+    c.messages.forEach(m => { if(m.out) m.read = true; });
+    if(cur && cur.id===c.id){ renderMsgs(); setStatus(true); }
+    typingTimer = setTimeout(() => {
+      const pool = kind==='gift' ? REPLIES.gift : (REPLIES[c.kind] || REPLIES.default);
+      pushMsg(c, {out:false,text:pool[rnd(0,pool.length-1)],read:true});
+      if(kind==='gift' && Math.random() < .4){
+        const g = GIFTS[rnd(0,5)], o = addGift(g.id, c.name);
+        pushMsg(c, {out:false,read:true,gift:{uid:o.uid,gid:o.gid,nft:null}});
+        toast(`${c.name} отправил(а) вам подарок «${g.n}»`);
+      }
+      if(!(cur && cur.id===c.id)){ c.unread++; if(S.prefs.preview){ const lm=last(c); showBanner(c.name, lm.gift?'🎁 Подарок':lm.text); } }
+      save();
+      if(cur && cur.id===c.id){ setStatus(false); renderMsgs(); }
+      renderChats(); renderProfile();
+    }, 1000+Math.random()*1200);
+  }, 700);
+}
+$('#emojiPanel').innerHTML = EMOJI.map(e=>`<button>${e}</button>`).join('');
+$('#emojiPanel').addEventListener('click', e => { if(e.target.tagName==='BUTTON'){ input.value += e.target.textContent; syncSend(); autoGrow(); } });
+$('#emojiBtn').onclick = () => $('#emojiPanel').classList.toggle('open');
+$('#chatMenu').onclick = () => {
+  if(!cur) return; const c = cur;
+  const opts = [
+    {html:'🧹 Очистить историю', fn:()=>{ c.messages=[]; save(); renderMsgs(); renderChats(); }},
+    {html:c.pinned?'📍 Открепить':'📌 Закрепить', fn:()=>{ c.pinned=!c.pinned; save(); renderChats(); toast(c.pinned?'Чат закреплён':'Чат откреплён'); }}];
+  if(!c.kind || c.kind==='mom' || c.kind==='tg' || c.kind==='chan') opts.push({html:'🗑 Удалить чат', danger:true, fn:()=>{ S.chats=S.chats.filter(x=>x.id!==c.id); save(); $('#chatBack').click(); renderContacts(); }});
+  optionsSheet(c.name, opts);
+};
+$('#giftBtn').onclick = () => {
+  if(!cur) return;
+  if(['saved','news','bot','tg','chan'].includes(cur.kind)){ toast('Подарок можно отправить только контакту'); return; }
+  giftPicker(cur);
+};
+function giftPicker(c, tab='cat'){
+  const mine = S.gifts;
+  const body = tab==='cat'
+    ? GIFTS.map(g => `<div class="gtile sm" data-g="${g.id}">${art(g.id,50)}${S.left[g.id]<=0?'<span class="sold">РАСПРОДАНО</span>':''}<span class="price">${gp(g)} ★</span></div>`).join('')
+    : (mine.length ? [...mine].reverse().map(o => { const p=parts(o); return `<div class="gtile col sm ${rc(o)}" data-u="${o.uid}">${tile(o,92,50)}<div class="nmc">${esc(p.g.n)}${o.nft?' #'+num(o.nft.num):''}</div></div>`; }).join('') : '<div class="empty" style="grid-column:1/-1;padding:30px 10px">В коллекции пока пусто</div>');
+  sheet(`<h3>Подарок для ${esc(c.name)}</h3><div class="pills"><button data-t="cat" class="${tab==='cat'?'on':''}">Каталог</button><button data-t="mine" class="${tab==='mine'?'on':''}">Моя коллекция (${mine.length})</button></div><div class="ggrid">${body}</div><div style="padding:0 18px 6px;color:var(--muted);font-size:13px">Баланс: ${S.balance} ⭐</div>`, el => {
+    el.querySelectorAll('.pills button').forEach(b => b.onclick = () => giftPicker(c, b.dataset.t));
+    el.querySelectorAll('[data-g]').forEach(n => n.onclick = () => { closeSheet(); sendGift(n.dataset.g, c.id); });
+    el.querySelectorAll('[data-u]').forEach(n => n.onclick = () => { closeSheet(); transferGift(n.dataset.u, c.id); });
+  });
+}
+function openContact(){
+  if(!cur) return;
+  if(!cur.kind||cur.kind==='mom'||cur.kind==='tg') return openUserProfile(cur.id); const c = cur, canGift = !['saved','news','bot','tg','chan'].includes(c.kind);
+  sheet(`<div style="text-align:center;padding:6px 20px 12px"><div style="display:flex;justify-content:center">${avatar(c,84)}</div><h3 style="padding:12px 0 2px;display:flex;justify-content:center;gap:5px;align-items:center">${esc(c.name)} ${vb(c.verified)}</h3><div style="color:var(--muted);font-size:14px">${esc(c.status||'')}</div></div>`
+    + (canGift?'<div class="opt" data-a="g">🎁 Отправить подарок</div>':'')
+    + `<div class="opt" data-a="p">${c.pinned?'📍 Открепить чат':'📌 Закрепить чат'}</div><div class="opt danger" data-a="c">🧹 Очистить историю</div>`, el => {
+    el.querySelectorAll('.opt').forEach(n => n.onclick = () => { closeSheet(); const a = n.dataset.a;
+      if(a==='g') giftPicker(c); else if(a==='p'){ c.pinned=!c.pinned; save(); renderChats(); toast(c.pinned?'Чат закреплён':'Чат откреплён'); } else { c.messages=[]; save(); renderMsgs(); renderChats(); } });
+  });
+}
+$('#chatAv').onclick = openContact; document.querySelector('.chat-head .who').onclick = openContact;
+
+/* ---------- покупка / отправка ---------- */
+function sendGift(gid, chatId){ if(S.left[gid]<=0) return toast('Тираж закончился');
+  const g = gById(gid), c = chatById(chatId);
+  if(S.balance < gp(g)) return toast('Недостаточно звёзд ⭐');
+  S.balance -= gp(g); S.left[gid] = Math.max(0,S.left[gid]-1);
+  pushMsg(c, {out:true,gift:{uid:uid(),gid,nft:null}}); ensureUP(c); c.gifts.push({gid,nft:null,from:S.me.name,ts:Date.now()}); save(); refreshUP(c.id);
+  if(cur && cur.id===c.id) renderMsgs();
+  toast(`«${g.n}» отправлен`); scheduleReply(c,'gift'); renderGifts(); renderProfile(); renderChats();
+}
+function transferGift(u, chatId){
+  const o = S.gifts.find(x=>x.uid===u), c = chatById(chatId); if(!o||!c) return;
+  S.gifts = S.gifts.filter(x=>x.uid!==u); if(S.equipped===u) S.equipped = null;
+  pushMsg(c, {out:true,gift:{uid:u,gid:o.gid,nft:o.nft}}); ensureUP(c); c.gifts.push({gid:o.gid,nft:o.nft,from:S.me.name,ts:Date.now()}); save(); refreshUP(c.id);
+  if(cur && cur.id===c.id) renderMsgs();
+  toast('Подарок отправлен'); scheduleReply(c,'gift'); renderProfile(); renderChats();
+}
+
+/* ---------- каталог подарков ---------- */
+let giftTab = 'all';
+document.querySelectorAll('#giftPills button').forEach(b => b.onclick = () => { giftTab = b.dataset.t; document.querySelectorAll('#giftPills button').forEach(x=>x.classList.toggle('on',x===b)); renderGifts(); });
+let mSort = 'price';
+function renderGifts(){
+  if(!S) return;
+  $('#gbal').textContent = S.balance;
+  const grid = $('#giftGrid'), tools = $('#giftTools'); tools.innerHTML = '';
+  if(['all','new','cheap','rare'].includes(giftTab)){
+    let list = GIFTS.slice();
+    if(giftTab==='new') list = list.filter(g => g.isNew);
+    if(giftTab==='cheap') list = list.filter(g => g.p <= 50).sort((a,b) => a.p-b.p);
+    if(giftTab==='rare') list = list.filter(g => g.sup <= 5000).sort((a,b) => a.sup-b.sup);
+    grid.innerHTML = list.map(g => { const left = S.left[g.id] ?? g.sup, pct = Math.max(3, Math.round(left/g.sup*100));
+      return `<div class="gtile" data-id="${g.id}">${g.market?'<span class="ribbon">маркет</span>':g.isNew?'<span class="ribbon">new</span>':''}<div class="gart">${art(g.id,64)}</div><div class="gleft"><i style="width:${pct}%"></i></div><span class="gl">${left<=0?'Распродано':'Осталось '+num(left)}</span>${left<=0?'<span class="sold">РАСПРОДАНО</span>':''}<span class="price">${gp(g)} ★</span></div>`; }).join('') || '<div class="empty" style="grid-column:1/-1">Ничего нет</div>';
+    grid.querySelectorAll('.gtile').forEach(n => n.onclick = () => giftFlow(n.dataset.id));
+  } else if(giftTab==='col'){
+    tools.innerHTML = `<div class="sortrow">${[['price','Цена ↑'],['priceD','Цена ↓'],['rare','Редкость'],['new','Новые']].map(x => `<button data-s="${x[0]}" class="${mSort===x[0]?'on':''}">${x[1]}</button>`).join('')}</div>`;
+    tools.querySelectorAll('button').forEach(b => b.onclick = () => { mSort = b.dataset.s; renderGifts(); });
+    const all = [...S.listings.map(o => ({...o,mine:true})), ...S.market];
+    const rk = o => o.nft ? (100/MODELS[o.nft.m].w)*(100/BACKDROPS[o.nft.b].w)*(100/SYMBOLS[o.nft.s].w) : 0;
+    all.sort(mSort==='price' ? (a,b)=>a.price-b.price : mSort==='priceD' ? (a,b)=>b.price-a.price : mSort==='rare' ? (a,b)=>rk(b)-rk(a) : (a,b)=>(b.ts||0)-(a.ts||0));
+    grid.innerHTML = all.map(o => { const p = parts(o); return `<div class="gtile col ${rc(o)}" data-u="${o.uid}" data-m="${o.mine?1:0}">${o.mine?'<span class="ribbon">ваш лот</span>':''}${tile(o,104,60)}<div class="nmc">${esc(p.g.n)}${o.nft?' #'+num(o.nft.num):''}</div><span class="price">${o.price} ★</span></div>`; }).join('');
+    grid.querySelectorAll('.gtile').forEach(n => n.onclick = () => n.dataset.m==='1' ? lotSheet(n.dataset.u) : openGift(n.dataset.u, true));
+  } else {
+    tools.innerHTML = `<div style="padding:6px 18px 0;color:var(--muted);font-size:13px">Подарков: ${S.gifts.length} · На маркете: ${S.listings.length}</div>`;
+    grid.innerHTML = S.gifts.length ? [...S.gifts].reverse().map(o => { const p = parts(o); return `<div class="gtile col ${rc(o)}" data-u="${o.uid}">${tile(o,104,58)}<div class="nmc">${esc(p.g.n)}</div><div class="own">${o.nft?'#'+num(o.nft.num):'Обычный'}${S.equipped===o.uid?' 📌':''}</div></div>`; }).join('') : '<div class="empty" style="grid-column:1/-1">У вас пока нет подарков.<br>Загляните во вкладку «Все» 🎁</div>';
+    grid.querySelectorAll('.gtile').forEach(n => n.onclick = () => openGift(n.dataset.u));
+  }
+}
+function giftFlow(gid){ if(S.left[gid]<=0) return toast('Тираж закончился');
+  const g = gById(gid);
+  optionsSheet(`${g.n} — ${gp(g)} ⭐`, [
+    {html:'<span style="font-size:22px;width:36px;text-align:center">🙋</span> Купить себе', fn:()=>{
+      if(S.balance < gp(g)) return toast('Недостаточно звёзд ⭐');
+      S.balance -= gp(g); addGift(gid,'Вы'); save(); toast('Добавлено в «Мои подарки»'); renderGifts(); renderProfile();
+    }},
+    ...S.chats.filter(c=>!c.kind).map(c => ({html:avatar(c,36)+'Отправить: '+esc(c.name), fn:()=>sendGift(gid,c.id)}))],
+    `Тираж ${num(g.sup)} шт., осталось ${num(S.left[gid])}. Подарок можно улучшить до коллекционного.`);
+}
+$('#topup').onclick = starsSheet;
+function starsSheet(){
+  optionsSheet(`У вас ${S.balance} ⭐`, [50,100,500,1000,5000].map(n => ({html:`<span style="width:36px;text-align:center">⭐</span> Пополнить на ${n} звёзд (демо)`, fn:()=>{ S.balance+=n; save(); renderGifts(); renderProfile(); toast(`Начислено ${n} ⭐`); }})));
+}
+
+/* ---------- карточка подарка ---------- */
+let viewUid = null, viewMarket = false;
+function openGift(u, market=false){ viewUid = u; viewMarket = market; viewObj = null; renderGiftDetail(); $('#giftView').classList.add('open'); }
+$('#giftBack').onclick = () => { $('#giftView').classList.remove('open'); renderProfile(); renderGifts(); if($('#subView').classList.contains('open') && $('#subTitle').textContent==='Мои подарки') openMyGifts(); };
+function renderGiftDetail(spin){
+  const o = viewObj || (viewMarket ? S.market.find(x => x.uid===viewUid) : S.gifts.find(x => x.uid===viewUid));
+  if(!o){ $('#giftView').classList.remove('open'); return; }
+  const p = parts(o), g = p.g;
+  $('#giftBarTitle').textContent = o.nft ? 'Уникальный подарок' : 'Подарок';
+  let inner = m3d(g.id,p.f,150,14);
+  if(spin) inner = inner.replace('class="m3d"','class="m3d spin"');
+  const prop = (k,v,r) => `<div class="prop"><span>${k}</span><span class="r"><b>${v}</b>${r?`<span class="rar">${r}</span>`:''}</span></div>`;
+  let props = prop(viewMarket?'Продавец':'Получен от', esc(viewMarket?o.seller:(o.from||'—')));
+  props += o.nft
+    ? prop('Модель', p.m.n, p.m.w+'%') + prop('Фон', p.b.n, p.b.w+'%') + prop('Узор', p.s.n+' '+p.s.c, p.s.w+'%') + prop('Редкость', `<span style="color:${rr(o).col}">${rr(o).n}</span>`) + prop('Выпуск', `#${num(o.nft.num)} из ${num(g.sup)}`)
+    : prop('Цена', gp(g)+' ⭐') + prop('Тираж', `осталось ${num(S.left[g.id] ?? g.sup)} из ${num(g.sup)}`);
+  props += prop('Оценка', '≈ '+giftValue(o)+' ⭐');
+  const equipped = !viewMarket && S.equipped === o.uid;
+  const btns = viewObj ? `<button class="btn grad" id="gSame">Купить такой же · ${gp(g)} ⭐</button>` : viewMarket
+    ? `<button class="btn grad" id="gBuy">Купить за ${o.price} ⭐</button>`
+    : `${o.nft ? '' : `<button class="btn grad" id="gUp">✨ Улучшить до уникального · ${upCost()} ⭐</button>`}
+       <button class="btn" id="gSend">Отправить</button>
+       <button class="btn sec" id="gEq">${equipped?'Убрать из профиля':'Показать в профиле'}</button>
+       <button class="btn sec" id="gList">🏪 Выставить на маркет</button>
+       <button class="btn sec" id="gSell">Конвертировать в ${giftValue(o)} ⭐</button>`;
+  $('#giftBody').innerHTML = `<div id="stage" style="touch-action:none;cursor:grab">${bdBox(p.bd,p.sym,inner,300,1.1,!!o.nft)}</div>
+    <div class="gd-title"><h2>${esc(g.n)}${o.nft?` #${num(o.nft.num)}`:''}${o.nft?` <span class="rar" style="color:${rr(o).col};vertical-align:middle">${rr(o).n}</span>`:''}</h2><p>${o.nft?'Коллекционный подарок · потяните, чтобы покрутить':'Обычный подарок · улучшите, чтобы получить уникальные свойства'}</p></div>
+    <div style="margin-top:10px">${props}</div><div class="btns">${btns}</div>`;
+  enableTilt($('#stage'));
+  if(viewObj){ $('#gSame').onclick = () => { $('#giftView').classList.remove('open'); giftFlow(o.gid); }; return; }
+  if(viewMarket){
+    $('#gBuy').onclick = () => {
+      if(S.balance < o.price) return toast('Недостаточно звёзд ⭐');
+      S.balance -= o.price; S.gifts.push({uid:o.uid,gid:o.gid,nft:o.nft,from:o.seller,ts:Date.now()});
+      S.market = S.market.filter(x=>x.uid!==o.uid); S.market.push(mkMarket()); save();
+      $('#giftView').classList.remove('open'); renderGifts(); renderProfile(); toast('Подарок куплен и добавлен в коллекцию');
+    };
+    return;
+  }
+  if($('#gUp')) $('#gUp').onclick = () => upgradeGift(o.uid);
+  $('#gSend').onclick = () => optionsSheet('Кому отправить?', S.chats.filter(c=>!c.kind||c.kind==='mom').map(c => ({html:avatar(c,36)+esc(c.name), fn:()=>{ transferGift(o.uid,c.id); $('#giftView').classList.remove('open'); }})));
+  $('#gEq').onclick = () => { S.equipped = equipped ? null : o.uid; save(); renderGiftDetail(); toast(equipped?'Убрано из профиля':'Подарок показан в профиле'); };
+  $('#gList').onclick = () => formSheet('Продать на маркете',[{label:'Цена ⭐ (оценка ≈ '+giftValue(o)+')',type:'number',value:giftValue(o)+10}],v=>{
+    const pr=Math.floor(+v[0]); if(!(pr>=1)) return toast('Укажите цену');
+    S.gifts=S.gifts.filter(x=>x.uid!==o.uid); if(S.equipped===o.uid) S.equipped=null;
+    S.listings.push({uid:o.uid,gid:o.gid,nft:o.nft,price:pr,ts:Date.now(),seller:'Вы'}); save();
+    $('#giftView').classList.remove('open'); renderProfile(); renderGifts(); toast('Выставлено за '+pr+' ⭐ · комиссия '+(isPrem()?0:5)+'%');
+  },'Выставить');
+  $('#gSell').onclick = () => optionsSheet(`Конвертировать «${g.n}» в ${giftValue(o)} ⭐?`, [{html:'Да, конвертировать', danger:true, fn:()=>{
+    S.balance += giftValue(o); S.gifts = S.gifts.filter(x=>x.uid!==o.uid); if(S.equipped===o.uid) S.equipped=null; save();
+    $('#giftView').classList.remove('open'); renderProfile(); renderGifts(); toast('Звёзды зачислены'); }}]);
+}
+function upgradeGift(u){
+  const o = S.gifts.find(x=>x.uid===u), g = gById(o.gid);
+  if(S.balance < upCost()) return toast('Недостаточно звёзд ⭐');
+  optionsSheet(`Улучшить «${g.n}» за ${upCost()} ⭐?`, [{html:'✨ Улучшить', fn:()=>{
+    S.balance -= upCost(); o.nft = mkNft(g); save(); renderGiftDetail(true); renderGifts(); confetti();
+    setTimeout(()=>toast(`Выпала модель «${MODELS[o.nft.m].n}», фон «${BACKDROPS[o.nft.b].n}»!`), 1100);
+  }}]);
+}
+function enableTilt(stage){
+  const inn = stage.querySelector('.m3d-in'); let drag = false;
+  const move = e => {
+    if(!drag) return; const r = stage.getBoundingClientRect();
+    const x = ((e.clientX - r.left)/r.width - .5), y = ((e.clientY - r.top)/r.height - .5);
+    inn.style.animation = 'none'; inn.style.transform = `rotateY(${x*140}deg) rotateX(${-y*70}deg)`;
+  };
+  stage.addEventListener('pointerdown', e => { drag = true; stage.setPointerCapture(e.pointerId); move(e); });
+  stage.addEventListener('pointermove', move);
+  const end = () => { if(!drag) return; drag = false; inn.style.transition='transform .4s'; setTimeout(()=>{ inn.style.transition=''; inn.style.transform=''; inn.style.animation=''; },400); };
+  stage.addEventListener('pointerup', end); stage.addEventListener('pointercancel', end);
+}
+
+/* ---------- настройки (профиль) ---------- */
+const srow = (ic,col,t,sub,right,a) => `<div class="srow" data-a="${a}">${ico(ic,col)}<div class="sm"><div class="st1">${t}</div>${sub?`<div class="st2">${sub}</div>`:''}</div>${right?`<div class="sr">${right}</div>`:''}</div>`;
+function renderProfile(){
+  if(!S) return;
+  const me = S.me, eq = S.gifts.find(x => x.uid===S.equipped);
+  let topBg = '', patHtml = '';
+  if(eq && eq.nft){ const p = parts(eq); topBg = `background:radial-gradient(circle at 50% 40%,${p.bd.c[0]},${p.bd.c[1]})`; patHtml = `<div class="pat">${pattern(p.sym,1)}</div>`; }
+  $('#profileBody').innerHTML = `
+    <div class="pf-top ${isPrem()&&!topBg?'prem':''}" style="${topBg}">${patHtml}${meAvatar(120)}
+      <div class="pf-name"><span>${esc(fullName(me))}</span>${meBadges()}${eq?`<span>${art(eq.gid,26,parts(eq).f)}</span>`:''}</div>
+      <div class="pf-status"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z" fill="#fff" stroke="none"/><path d="M12 8v5" stroke="#111"/></svg>в сети</div></div>
+    <div class="scard">
+      ${srow('phone','#4cc15f',esc(me.phone),'Телефон','','phone')}
+      ${me.anon?srow('phone','#f5b301',esc(me.anon),'Анонимный номер · Fragment','','anon'):''}
+      ${srow('at','#2ba5f7','@'+esc(me.username),'Имя пользователя',QR,'username')}
+      ${srow('info','#8e9aa6',me.bio?esc(me.bio):'Добавьте о себе','О себе','','bio')}
+      ${srow('cake','#e8603c',esc(bdayText(me.birthday)),'День рождения','','bday')}
+    </div>
+    ${ownGiftsBlock()}
+    <div class="scard">
+      ${srow('user','#2ba5f7','Аккаунт','Имя пользователя, «О себе», день рождения','','account')}
+      ${srow('gear','#f59e0b','Общие настройки','Обои, тема, клавиатура','','general')}
+      ${srow('bell','#ef5350','Уведомления','Звуки, звонки, счётчик сообщений','','notif')}
+      ${srow('lock','#8aa0b3','Конфиденциальность','Время захода, пароль, чёрный список','','privacy')}
+      ${srow('pie','#4cc15f','Данные и память','Загрузка медиафайлов, кэш','','data')}
+      ${srow('folder','#2b9bf7','Папки с чатами','Сортировка чатов по папкам','','folders')}
+      ${srow('bolt','#7e57e6','Анимации и скорость','Анимации, переходы, автозапуск','','anim')}
+      ${srow('smile','#f0457d','Стикеры и эмодзи','Стикеры, эмодзи, реакции','','stickers')}
+      ${srow('globe','#8e6cf0','Язык','Русский, перевод сообщений','','lang')}
+      ${srow('devices','#2b9bf7','Активные сеансы','Активные сеансы, автозавершение','3','sessions')}
+    </div>
+    <div class="scard">
+      ${srow('star','#a56cf7','Vopgram Premium',isPrem()?'Активен до '+new Date(S.premium).toLocaleDateString('ru-RU'):'Расширенные возможности','','premium')}
+      ${srow('starO','#f59e0b','Мои звёзды','',`${S.balance} <span style="color:#f5b301">★</span>`,'stars')}
+      ${srow('gem','#2b9bf7','Заработанные VOP','',`0 <span style="color:#4fc3ff">◆</span>`,'vop')}
+      ${srow('gift','#f59e0b','Мои подарки','',`${S.gifts.length}`,'mygifts')}
+      ${srow('gift','#ff8a3d','Отправить подарок','','','sendgift')}
+    </div>
+    <div class="scard" style="margin-bottom:24px">
+      ${srow('chat','#ef5350','Задать вопрос','','','ask')}
+      ${srow('help','#2b9bf7','Вопросы о Vopgram','','','faq')}
+      ${srow('shield','#4cc15f','Политика конфиденциальности','','','policy')}
+      ${srow('lock','#7e57e6','Админ-панель','Управление приложением, ботом и подарками','','admin')}
+      <div class="srow danger" data-a="logout">${ico('logout','#ef5350')}<div class="sm"><div class="st1">Выйти</div></div></div>
+    </div>`;
+  $('#profileBody').querySelectorAll('.srow').forEach(n => n.onclick = () => settingAction(n.dataset.a));
+  bindOwnGifts();
+}
+$('#setBack').onclick = () => switchTab('chats');
+$('#setSearch').onclick = () => toast('Поиск по настройкам скоро появится');
+$('#editProfile').onclick = editProfile;
+$('#setMenu').onclick = () => optionsSheet('Ещё', [{html:'✏️ Изменить профиль', fn:editProfile},{html:'🚪 Выйти из аккаунта', danger:true, fn:logoutFlow}]);
+function usernameError(u){
+  u = u.replace(/^@/,'');
+  if(u.length < 5) return 'Имя пользователя: минимум 5 символов';
+  if(u.length > 32) return 'Имя пользователя: максимум 32 символа';
+  if(!/^[A-Za-z][A-Za-z0-9_]*$/.test(u)) return 'Только латиница, цифры и «_», начинать нужно с буквы';
+  if(u.endsWith('_') || u.includes('__')) return 'Нельзя заканчивать на «_» или использовать «__»';
+  const l = u.toLowerCase();
+  if(['vopgram','vopbot','vop_bot','admin','support','telegram'].includes(l)) return 'Это имя зарезервировано';
+  if(Object.values(ACCS).some(a => a !== S && a.me && a.me.username && a.me.username.toLowerCase() === l) || S.chats.some(c => c.username && c.username.toLowerCase() === l)) return 'Это имя уже занято';
+  return '';
+}
+function editProfile(){ optionsSheet('Профиль',[{html:'📷 Загрузить фото',fn:pickPhoto},...(S.me.photo?[{html:'🗑 Убрать фото',danger:true,fn:()=>{ delete S.me.photo; save(); renderAll(); toast('Фото удалено'); }}]:[]),{html:'✏️ Изменить данные',fn:editProfileForm}]); }
+function pickPhoto(){ const i=document.createElement('input'); i.type='file'; i.accept='image/*'; i.onchange=()=>{ const f=i.files[0]; if(!f) return; const r=new FileReader(); r.onload=()=>{ const im=new Image(); im.onload=()=>{ const s=Math.min(im.width,im.height), c=document.createElement('canvas'); c.width=c.height=320; c.getContext('2d').drawImage(im,(im.width-s)/2,(im.height-s)/2,s,s,0,0,320,320); S.me.photo=c.toDataURL('image/jpeg',.85); save(); renderAll(); toast('Фото обновлено'); }; im.src=r.result; }; r.readAsDataURL(f); }; i.click(); }
+function editProfileForm(){
+  const m = S.me;
+  formSheet('Изменить профиль', [{label:'Имя',value:m.name},{label:'Фамилия',value:m.surname||''},{label:'Имя пользователя',value:m.username},{label:'О себе',value:m.bio||''},{label:'День рождения',type:'date',value:m.birthday||''}], v => {
+    if(v[0]) m.name = v[0]; m.surname = v[1]; m.bio = v[3]; m.birthday = v[4];
+    const un = (v[2]||'').replace(/^@/,''); let er = '';
+    if(un && un !== m.username){ er = usernameError(un); if(!er) m.username = un; }
+    save(); renderProfile(); toast(er || 'Профиль обновлён');
+  }, 'Сохранить');
+}
+function editField(key, label, type){
+  formSheet(label, [{label, type, value:S.me[key]||'', ph:key==='username'?'от 5 символов: a-z, 0-9, _':''}], v => { if(key==='username'){ const un=v[0].replace(/^@/,''); if(un!==S.me.username){ const er=usernameError(un); if(er){ toast(er); return editField(key,label,type); } } } S.me[key] = key==='username' ? v[0].replace(/^@/,'') : v[0]; save(); renderProfile(); if($('#subView').classList.contains('open') && $('#subTitle').textContent==='Аккаунт') openAccount(); toast('Сохранено'); }, 'Сохранить');
+}
+function settingAction(a){
+  const soon = () => toast('Раздел скоро появится');
+  ({
+    phone:()=>toast('Номер телефона изменить нельзя в демо-версии'), username:()=>editField('username','Имя пользователя'), bio:()=>editField('bio','О себе'), bday:()=>editField('birthday','День рождения','date'),
+    account:openAccount, general:openGeneral, notif:openNotif, privacy:openPrivacy, data:openData, folders:soon, anim:openAnim, stickers:soon, lang:openLang, sessions:openSessions,
+    
+    stars:starsSheet, vop:()=>toast('Здесь появятся заработанные VOP'), mygifts:openMyGifts, sendgift:()=>switchTab('gifts'),
+    ask:()=>openChat(BOT_ID), faq:openFaq, policy:openPolicy, anon:()=>toast('Анонимный номер +888 привязан к вашему аккаунту'), premium:openPremium, admin:adminGate, logout:logoutFlow
+  }[a] || soon)();
+}
+function logoutFlow(){ optionsSheet('Выйти из аккаунта?', [{html:'Выйти', danger:true, fn:()=>{ try{localStorage.removeItem(SES_KEY);}catch(e){} PHONE=null; S=null; $('#subView').classList.remove('open'); $('#chatView').classList.remove('open'); startAuth(); }}], 'Данные сохранятся на этом устройстве. Вы сможете войти снова по номеру телефона.'); }
+
+function openSub(title, html, bind){ delete $('#subTitle').dataset.up; $('#subTitle').textContent = title; $('#subBody').innerHTML = html; $('#subView').classList.add('open'); bind && bind($('#subBody')); }
+$('#subBack').onclick = () => $('#subView').classList.remove('open');
+const sw = on => `<div class="switch ${on?'on':''}"></div>`;
+function openAccount(){
+  const m = S.me;
+  openSub('Аккаунт', `<div class="scard">
+    ${srow('phone','#4cc15f',esc(m.phone),'Телефон','','x')}
+    ${srow('user','#2ba5f7',esc(m.name),'Имя','','name')}
+    ${srow('user','#8aa0b3',m.surname?esc(m.surname):'Не указана','Фамилия','','surname')}
+    ${srow('at','#2ba5f7','@'+esc(m.username),'Имя пользователя','','username')}
+    ${srow('info','#8e9aa6',m.bio?esc(m.bio):'Не указано','О себе','','bio')}
+    ${srow('cake','#e8603c',esc(bdayText(m.birthday)),'День рождения','','birthday')}</div>`, el =>
+    el.querySelectorAll('.srow').forEach(n => n.onclick = () => { const a=n.dataset.a; if(a==='x') return toast('Номер телефона изменить нельзя в демо-версии'); editField(a, {name:'Имя',surname:'Фамилия',username:'Имя пользователя',bio:'О себе',birthday:'День рождения'}[a], a==='birthday'?'date':'text'); }));
+}
+function toggleRows(title, rows){
+  openSub(title, `<div class="scard">${rows.map(r=>`<div class="srow" data-k="${r.k}"><div class="sm"><div class="st1">${r.t}</div>${r.s?`<div class="st2">${r.s}</div>`:''}</div>${sw(S.prefs[r.k])}</div>`).join('')}</div>`, el =>
+    el.querySelectorAll('.srow').forEach(n => n.onclick = () => { const k=n.dataset.k; S.prefs[k]=!S.prefs[k]; save(); n.querySelector('.switch').classList.toggle('on',S.prefs[k]); renderChats(); }));
+}
+const openNotif = () => toggleRows('Уведомления',[{k:'sound',t:'Звуки',s:'Сигнал при новых сообщениях'},{k:'preview',t:'Показывать текст',s:'Предпросмотр сообщений в уведомлениях'},{k:'badge',t:'Счётчик сообщений',s:'Значок с числом непрочитанных'}]);
+const openPrivacy = () => toggleRows('Конфиденциальность',[{k:'showBday',t:'Показывать день рождения',s:'Контакты увидят вашу дату рождения'}]);
+const openAnim = () => toggleRows('Анимации и скорость',[{k:'anim',t:'Анимации интерфейса',s:'Плавные переходы и эффекты'}]);
+function openData(){ const kb = Math.round(JSON.stringify(S).length/1024); openSub('Данные и память', `<div class="scard"><div class="srow"><div class="sm"><div class="st1">Использовано памяти</div><div class="st2">Чаты, подарки и настройки</div></div><div class="sr">${kb} КБ</div></div></div>
+  <div style="padding:6px 16px"><button class="btn sec" id="clr">Очистить историю всех чатов</button></div>`, el => el.querySelector('#clr').onclick = () => optionsSheet('Очистить все чаты?',[{html:'Да, очистить',danger:true,fn:()=>{S.chats.forEach(c=>c.messages=[]);save();renderChats();toast('История очищена');openData();}}])); }
+function openGeneral(){
+  openSub('Общие настройки', `<div class="section">Тема оформления</div><div class="swatches">${THEMES.map((t,i)=>`<button class="swatch ${i===S.theme?'sel':''}" data-i="${i}" title="${t.n}" style="background:linear-gradient(135deg,${t.panel} 50%,${t.a} 50%)"></button>`).join('')}</div>
+    <div class="section">Предпросмотр</div><div style="padding:10px 14px;display:flex;flex-direction:column;gap:4px;background-image:var(--doodle)"><div class="msg in" style="align-self:flex-start">Как тебе новая тема? 🎨</div><div class="msg out" style="align-self:flex-end">Выглядит отлично!</div></div>`, el => {
+    el.querySelectorAll('.swatch').forEach(b => b.onclick = () => { const ti=+b.dataset.i; if(THEMES[ti].prem && !isPrem()){ toast('Тема доступна в Premium ⭐'); return openPremium(); } S.theme=ti; save(); applyTheme(); el.querySelectorAll('.swatch').forEach(x=>x.classList.toggle('sel',x===b)); });
+  });
+}
+function openLang(){ openSub('Язык', `<div class="scard">${['Русский','English','Українська','Deutsch','Polski'].map((l,i)=>`<div class="srow" data-i="${i}"><div class="sm"><div class="st1">${l}</div></div>${i===0?'<div class="sr" style="color:var(--accent)">✓</div>':''}</div>`).join('')}</div>`, el => el.querySelectorAll('.srow').forEach(n => n.onclick = () => n.dataset.i==='0' ? toast('Русский уже выбран') : toast('Другие языки скоро появятся'))); }
+function openSessions(){ openSub('Активные сеансы', `<div class="section">Это устройство</div><div class="scard">${srow('devices','#4cc15f','Vopgram Web','Этот браузер · сейчас онлайн','','x')}</div><div class="section">Другие сеансы</div><div class="scard">${srow('devices','#2b9bf7','Vopgram Android','вчера','','x')}${srow('devices','#7e57e6','Vopgram Desktop','3 дня назад','','x')}</div>`); }
+function openMyGifts(){
+  const list = [...S.gifts].reverse();
+  openSub('Мои подарки', list.length ? `<div class="ggrid">${list.map(o => {
+    const p = parts(o);
+    return `<div class="gtile col ${rc(o)}" data-u="${o.uid}">${tile(o,110,58)}<div class="nmc">${esc(p.g.n)}</div><div class="own">${o.nft?'#'+num(o.nft.num):'Обычный'}${S.equipped===o.uid?' 📌':''}</div></div>`; }).join('')}</div>`
+    : '<div class="empty">У вас пока нет подарков.<br>Загляните во вкладку «Подарки» 🎁</div>',
+    el => el.querySelectorAll('.gtile').forEach(n => n.onclick = () => openGift(n.dataset.u)));
+}
+
+/* ---------- вход по номеру ---------- */
+let A = {cc:0, digits:'', code:'', step:'phone', cooldown:0};
+const fmtDigits = d => [d.slice(0,3), d.slice(3,6), d.slice(6,8), d.slice(8,12)].filter(Boolean).join(' ');
+const ccLen = () => COUNTRIES[A.cc];
+function countrySheet(){
+  const draw = q => COUNTRIES.map((x,i)=>({x,i})).filter(({x})=>!q || (x[1]+' +'+x[2]).toLowerCase().includes(q));
+  sheet(`<h3>Выберите страну</h3><div class="field"><label>Поиск (название или код)</label><input id="ccq" placeholder="например, Ит или 39"></div><div id="ccl"></div>`, el => {
+    const list = el.querySelector('#ccl'), inp = el.querySelector('#ccq');
+    const paint = () => {
+      const q = inp.value.trim().toLowerCase().replace(/^\+/,'');
+      const items = draw(q).filter(({x})=>!q || (x[1].toLowerCase().includes(q) || x[2].startsWith(q)));
+      list.innerHTML = items.map(({x,i})=>`<div class="opt" data-i="${i}"><span style="font-size:24px;width:34px;text-align:center">${x[0]}</span><span style="flex:1">${esc(x[1])}</span><span style="color:var(--muted)">+${x[2]}</span></div>`).join('') || '<div class="empty" style="padding:20px">Не найдено</div>';
+      list.querySelectorAll('.opt').forEach(n => n.onclick = () => { A.cc = +n.dataset.i; A.digits = A.digits.slice(0, COUNTRIES[A.cc][4]); closeSheet(); renderAuth(); });
+    };
+    inp.oninput = paint; paint();
+  });
+}
+const fullPhone = () => `+${COUNTRIES[A.cc][2]} ${fmtDigits(A.digits)}`;
+function showBanner(title, text){ const b=$('#banner'); b.innerHTML = `<div style="font-size:28px">💬</div><div><b>${esc(title)}</b><span>${esc(text)}</span></div>`; b.classList.add('show'); clearTimeout(showBanner.t); showBanner.t=setTimeout(()=>b.classList.remove('show'),9000); }
+function startAuth(){ A = {cc:0,digits:'',code:'',step:'phone',cooldown:0}; $('#auth').classList.add('open'); applyTheme(); renderAuth(); }
+const LOGO = `<div class="av" style="width:112px;height:112px;font-size:60px;background:radial-gradient(circle at 30% 25%,#ffb3d9,#c77dff 45%,#5a4fcf);box-shadow:0 8px 30px rgba(122,90,255,.35)">🐰</div>`;
+function renderAuth(){
+  const el = $('#auth');
+  if(A.step === 'phone'){
+    const c = COUNTRIES[A.cc];
+    el.innerHTML = `${LOGO}<h2>Vopgram</h2><p class="sub">Подтвердите код страны и введите свой номер телефона.</p>
+      <div class="afield" id="cc"><label>Страна</label><span class="cc">${c[0]} ${c[1]}</span><span style="margin-left:auto;color:var(--muted)">▾</span></div>
+      <div class="afield"><label>Номер телефона</label><span class="cc">+${c[2]}</span><input id="ph" type="tel" inputmode="numeric" placeholder="000 000 00 00" value="${fmtDigits(A.digits)}" autocomplete="tel"></div>
+      <button class="abtn" id="go" ${A.digits.length<c[3]?'disabled':''}>Продолжить</button>
+      <p class="sub" style="font-size:13px;margin-top:18px">Код входа выдаст бот.</p>`;
+    $('#cc').onclick = countrySheet;
+    const ph = $('#ph'), go = $('#go');
+    ph.oninput = () => { A.digits = ph.value.replace(/\D/g,'').slice(0,c[4]); ph.value = fmtDigits(A.digits); go.disabled = A.digits.length<c[3]; };
+    ph.onkeydown = e => { if(e.key==='Enter' && !go.disabled) go.click(); };
+    go.onclick = () => { A.step='code'; botReq(); A.entered=''; A.cooldown=30; renderAuth(); };
+    setTimeout(()=>ph.focus(),50);
+  } else if(A.step === 'code'){
+    el.innerHTML = `<div style="align-self:flex-start;margin-left:-8px"><button class="iconbtn" id="abk"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button></div>
+      <div style="font-size:56px;margin-top:6px">📱</div><h2>${esc(fullPhone())}</h2>
+      <p class="sub">Введите 7-значный код, который выдал бот.</p>
+      <div class="codebox" id="cb">${[0,1,2,3,4,5,6].map(()=>'<span></span>').join('')}</div>
+      <input id="ci" type="tel" inputmode="numeric" maxlength="7" style="position:absolute;opacity:0;pointer-events:none;width:1px;height:1px">
+      <div class="alink" id="resend"></div>`;
+    $('#abk').onclick = () => { A.step='phone'; renderAuth(); };
+    const ci = $('#ci'), boxes = [...$('#cb').children], paint = () => { boxes.forEach((b,i)=>{ b.textContent = A.entered[i]||''; b.classList.toggle('cur', i===A.entered.length); }); };
+    $('#cb').onclick = () => ci.focus(); paint(); ci.focus();
+    ci.oninput = () => {
+      A.entered = ci.value.replace(/\D/g,'').slice(0,7); ci.value = A.entered; paint(); $('#cb').classList.remove('err');
+      if(A.entered.length === 7){
+        if(!BOT_AUTH_URL && LOGIN_CODES.includes(A.entered)) afterCode(); else (BOT_AUTH_URL ? botCheck : (c,o,f)=>f())(A.entered, afterCode, ()=>{ $('#cb').classList.add('err'); toast('Неверный код'); setTimeout(()=>{ A.entered=''; ci.value=''; $('#cb').classList.remove('err'); paint(); },600); }); if(1) ;
+        else { $('#cb').classList.add('err'); toast('Неверный код'); setTimeout(()=>{ A.entered=''; ci.value=''; $('#cb').classList.remove('err'); paint(); },600); }
+      }
+    };
+    const rs = $('#resend'); clearInterval(renderAuth.t);
+    const tick = () => { if(A.cooldown>0){ rs.style.color='var(--muted)'; rs.textContent = `Отправить код повторно через 0:${String(A.cooldown).padStart(2,'0')}`; } else { rs.style.color=''; rs.textContent='Отправить код ещё раз'; rs.onclick = () => { botReq(); A.cooldown=30; tick(); }; } };
+    tick(); renderAuth.t = setInterval(()=>{ if(A.step!=='code'){ clearInterval(renderAuth.t); return; } if(A.cooldown>0){ A.cooldown--; tick(); } },1000);
+  } else if(A.step === 'reg'){
+    el.innerHTML = `${LOGO}<h2>Ваш профиль</h2><p class="sub">Введите имя. Дату рождения указывать необязательно — всё можно изменить позже.</p>
+      <div class="afield"><label>Имя</label><input id="rn" placeholder="Имя" autocomplete="given-name"></div>
+      <div class="afield"><label>Фамилия (необязательно)</label><input id="rs" placeholder="Фамилия" autocomplete="family-name"></div>
+      <div class="afield"><label>День рождения (необязательно)</label><input id="rb" type="date" max="${new Date().toISOString().slice(0,10)}"></div>
+      <button class="abtn" id="rgo" disabled>Начать</button>`;
+    const rn = $('#rn'), rb = $('#rb'), btn = $('#rgo'), chk = () => { btn.disabled = !rn.value.trim(); };
+    rn.oninput = chk; rb.oninput = chk; rn.onkeydown = e => { if(e.key==='Enter' && !btn.disabled) btn.click(); };
+    btn.onclick = () => finishReg({name:rn.value.trim(), surname:$('#rs').value.trim(), birthday:rb.value});
+    setTimeout(()=>rn.focus(),50);
+  }
+}
+function afterCode(){
+  clearInterval(renderAuth.t); $('#banner').classList.remove('show');
+  const ph = fullPhone();
+  if(ACCS[ph]){ loginAs(ph); toast('С возвращением!'); } else { A.step='reg'; renderAuth(); }
+}
+function finishReg(p){
+  const ph = fullPhone();
+  PHONE = ph;
+  S = fresh({name:p.name, surname:p.surname, phone:ph, username:'user'+rnd(1000,9999), bio:'', birthday:p.birthday});
+  save(); try{ localStorage.setItem(SES_KEY, PHONE); }catch(e){}
+  startApp(true);
+}
+function loginAs(ph){
+  PHONE = ph; S = ACCS[ph];
+  if(!S.prefs) S.prefs = {sound:true,preview:true,badge:true,showBday:true,anim:true};
+  if(!S.listings) S.listings=[]; if(S.premium==null) S.premium=0;
+  if(!S.migr1){ S.migr1=1; S.chats=S.chats.filter(c=>!['anna','max','mom','dima'].includes(c.id)); }
+  GIFTS.forEach(g => { if(S.left[g.id]==null) S.left[g.id] = Math.floor(g.sup*(.3+Math.random()*.5)); });
+  try{ localStorage.setItem(SES_KEY, PHONE); }catch(e){}
+  startApp(false);
+}
+function startApp(isNew){
+  $('#auth').classList.remove('open');
+  applyTheme(); ensureBot(); renderAll(); switchTab('chats');
+  if(isNew) setTimeout(()=>toast(`Добро пожаловать, ${S.me.name}! Вам начислено 185 ⭐ и подарок 🌹`), 400);
+  checkBirthday();
+}
+function checkBirthday(){
+  const bd = S.me.birthday; if(!bd) return;
+  const d = new Date(bd+'T00:00:00'), n = new Date();
+  if(d.getMonth()===n.getMonth() && d.getDate()===n.getDate() && S.bdayYear !== n.getFullYear()){
+    S.bdayYear = n.getFullYear();
+    const o = addGift('cake','Vopgram'), news = chatById('news');
+    pushMsg(news, {out:false,read:false,text:`С днём рождения, ${S.me.name}! 🎂 Дарим вам праздничный торт.`});
+    pushMsg(news, {out:false,read:false,gift:{uid:o.uid,gid:'cake',nft:null}}); news.unread += 2;
+    save(); renderAll(); setTimeout(()=>toast('🎂 С днём рождения! Подарок уже в коллекции'), 1200);
+  }
+}
+function renderAll(){ renderChats(); renderContacts(); renderGifts(); renderProfile(); syncSend(); }
+
+/* ---------- маркет: свои лоты ---------- */
+function lotSheet(u){
+  const l=S.listings.find(x=>x.uid===u); if(!l) return; const g=gById(l.gid);
+  optionsSheet(`${g.n} · ${l.price} ⭐`,[
+    {html:'✏️ Изменить цену',fn:()=>formSheet('Новая цена',[{label:'Цена ⭐',type:'number',value:l.price}],v=>{ const pr=Math.floor(+v[0]); if(!(pr>=1)) return toast('Укажите цену'); l.price=pr; save(); renderGifts(); toast('Цена обновлена'); })},
+    {html:'↩️ Снять с продажи',fn:()=>{ S.listings=S.listings.filter(x=>x!==l); S.gifts.push({uid:l.uid,gid:l.gid,nft:l.nft,from:'Маркет',ts:Date.now()}); save(); renderGifts(); renderProfile(); toast('Подарок возвращён в коллекцию'); }}],
+    'Лот купят автоматически: чем ближе цена к оценке, тем быстрее. Комиссия маркета 5% (с Premium — 0%).');
+}
+function marketTick(){
+  if(!S||!S.listings||!S.listings.length) return;
+  const keep=[]; let sold=0;
+  S.listings.forEach(l=>{
+    const v=giftValue({gid:l.gid,nft:l.nft}), ratio=l.price/Math.max(1,v), pr=ratio<=1?.3:ratio<=1.5?.12:ratio<=2.5?.04:.005;
+    if(Math.random()<pr){ const fee=isPrem()?0:Math.round(l.price*.05), g=gById(l.gid); S.balance+=l.price-fee; sold++; showBanner('Маркет','«'+g.n+(l.nft?' #'+num(l.nft.num):'')+'» продан за '+l.price+' ⭐ (получено '+(l.price-fee)+' ⭐)'); }
+    else keep.push(l);
+  });
+  if(sold){ S.listings=keep; save(); renderGifts(); renderProfile(); }
+}
+setInterval(marketTick,12000);
+
+/* ---------- Premium ---------- */
+const PLANS=[{t:'1 месяц',s:'Попробуйте все возможности',p:250,d:30},{t:'3 месяца',s:'Выгода 20%',p:600,d:90},{t:'12 месяцев',s:'Выгода 33%',p:2000,d:365}];
+function openPremium(){
+  const on=isPrem(), until=new Date(S.premium).toLocaleDateString('ru-RU',{day:'numeric',month:'long',year:'numeric'});
+  const perks=[['star','#a56cf7','Значок Premium','Звезда рядом с именем в профиле и меню'],['gift','#ff8a3d','Скидка 10% на подарки','При покупке из каталога'],['bolt','#f59e0b','Дешёвое улучшение','Уникальный подарок за 30 ⭐ вместо 40'],['gem','#2b9bf7','Маркет без комиссии','Продавайте подарки без 5% комиссии'],['gear','#4cc15f','Эксклюзивные темы','«Рубин» и «Аврора», анимированный фон профиля'],['bell','#ef5350','Ежедневный бонус','/daily у Vop Bot даёт 75 ⭐ вместо 25']];
+  openSub('Vopgram Premium',`<div style="text-align:center;padding:26px 20px 8px"><div style="width:96px;height:96px;margin:0 auto;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,#a56cf7,#2AABEE)"><svg width="52" height="52" viewBox="0 0 24 24"><path d="M12 2l2.9 6.3 6.9.8-5.1 4.7 1.4 6.8L12 17.3 5.9 20.6l1.4-6.8L2.2 9.1l6.9-.8z" fill="#fff"/></svg></div><h2 style="margin-top:14px">Vopgram Premium</h2><p style="color:var(--muted);margin-top:6px;font-size:14.5px">${on?'Активен до '+until:'Откройте дополнительные возможности'}</p></div>
+    <div class="scard">${perks.map(x=>srow(x[0],x[1],x[2],x[3],'','x')).join('')}</div>
+    <div class="section">${on?'Продлить подписку':'Выберите план'} · у вас ${S.balance} ⭐</div>
+    <div class="scard" style="margin-bottom:24px">${PLANS.map((p,i)=>srow('star','#a56cf7',p.t,p.s,p.p+' ⭐','p'+i)).join('')}</div>`,
+    el=>el.querySelectorAll('.srow').forEach(n=>n.onclick=()=>{ const a=n.dataset.a; if(a[0]==='p') buyPlan(+a.slice(1)); }));
+}
+function buyPlan(i){
+  const p=PLANS[i]; if(S.balance<p.p){ toast('Недостаточно звёзд ⭐'); return starsSheet(); }
+  optionsSheet(`Premium на ${p.t} за ${p.p} ⭐?`,[{html:'⭐ Оформить',fn:()=>{ S.balance-=p.p; givePrem(p.d*D); save(); applyTheme(); renderAll(); openPremium(); confetti(); toast('Premium активирован ⭐'); }}]);
+}
+
+/* ---------- каналы и справка ---------- */
+function createChannel(){
+  formSheet('Новый канал',[{label:'Название канала'},{label:'Описание (необязательно)'}],v=>{
+    if(!v[0]) return; const id='ch'+Date.now();
+    S.chats.push({id,name:v[0],kind:'chan',color:rnd(0,5),unread:0,status:'ваш канал',messages:[]});
+    if(v[1]) pushMsg(chatById(id),{out:true,text:v[1],read:true});
+    save(); renderChats(); toast('Канал создан'); openChat(id);
+  },'Создать');
+}
+const qa=(q,a)=>`<div class="srow"><div class="sm"><div class="st1">${q}</div><div class="st2">${a}</div></div></div>`;
+function openFaq(){ openSub('Вопросы о Vopgram',`<div class="scard">${[
+  ['Что такое Vopgram?','Демо-мессенджер: чаты, каналы, подарки и Premium. Все данные хранятся только в вашем браузере.'],
+  ['Как получить звёзды?','Пополните баланс в «Мои звёзды» (демо), заберите бонус командой /daily у Vop Bot или продайте подарки на маркете.'],
+  ['Как улучшить подарок?','Откройте подарок в «Мои подарки» и нажмите «Улучшить до уникального» — он получит модель, фон и узор.'],
+  ['Как продать подарок?','В карточке подарка нажмите «Выставить на маркет» и назначьте цену. Лот купят автоматически, комиссия 5% (в Premium — без неё).'],
+  ['Что такое номер +888?','Анонимный номер, который выдаётся в админ-панели и отображается в профиле.']].map(x=>qa(x[0],x[1])).join('')}</div>`); }
+function openPolicy(){ openSub('Политика конфиденциальности',`<div class="scard">${qa('Данные','Vopgram работает локально: аккаунты, чаты и подарки хранятся в localStorage вашего браузера и никуда не отправляются.')}${qa('Telegram-мост','Токен бота, если вы его указали, хранится только на этом устройстве.')}${qa('Удаление','Очистите данные сайта в браузере или сбросьте аккаунт в админ-панели.')}</div>`); }
+
+/* ---------- профили ---------- */
+let pfTab = 'gifts', upTab = 'gifts', viewObj = null;
+const BIOS = ['Люблю кофе ☕','На связи 24/7','Музыка — моя жизнь 🎧','Путешествую и фотографирую 📷','Без лишних слов','Всем добра ✌️'];
+const TR = {а:'a',б:'b',в:'v',г:'g',д:'d',е:'e',ё:'e',ж:'zh',з:'z',и:'i',й:'y',к:'k',л:'l',м:'m',н:'n',о:'o',п:'p',р:'r',с:'s',т:'t',у:'u',ф:'f',х:'h',ц:'c',ч:'ch',ш:'sh',щ:'sh',ы:'y',э:'e',ю:'yu',я:'ya'};
+const translit = t => t.toLowerCase().split('').map(ch => TR[ch] ?? (/[a-z0-9]/.test(ch) ? ch : '')).join('');
+function ensureUP(c){
+  if(c.username && c.username.length < 5) c.username += rnd(100,999);
+  if(!c.username){ let u = (translit(c.name) || 'user') + rnd(10,99); while(u.length < 5) u += rnd(0,9); c.username = u; c.bio = BIOS[rnd(0,BIOS.length-1)]; }
+  if(!c.gifts){
+    c.gifts = [];
+    if(!c.kind || c.kind==='mom') for(let i=rnd(0,4); i>0; i--){
+      const g = GIFTS[rnd(0,GIFTS.length-1)];
+      c.gifts.push({gid:g.id, nft:Math.random()<.5 ? mkNft(g) : null, from:['Алекс','Ника','Тимур','Вика','Лёва'][rnd(0,4)], ts:Date.now()-rnd(1,30)*D});
+    }
+  }
+}
+function refreshUP(id){ if($('#subView').classList.contains('open') && $('#subTitle').dataset.up===id) openUserProfile(id); }
+function bindAv(root){
+  root.querySelectorAll('.row').forEach(r => { const c = chatById(r.dataset.id), a = r.querySelector('.av');
+    if(c && a && (!c.kind || c.kind==='mom' || c.kind==='tg')) a.onclick = e => { e.stopPropagation(); upTab='gifts'; openUserProfile(c.id); }; });
+}
+const ptabs = (n, tab) => `<div class="ptabs">${[['gifts','Подарки'+(n?' '+n:'')],['posts','Публикации'],['arch','Архив историй']].map(x => `<button data-pt="${x[0]}" class="${tab===x[0]?'on':''}">${x[1]}</button>`).join('')}</div>`;
+const pgCell = (o, attr, extra='') => `<div class="pg ${rc(o)}" ${attr}>${tile(o,112,62)}<i class="frm">${esc(((o.from||'?')[0]||'?').toUpperCase())}</i>${extra}</div>`;
+function ownGiftsBlock(){
+  const list = [...S.gifts].reverse();
+  let body;
+  if(pfTab==='gifts') body = list.length
+    ? `<div class="pgrid">${list.map(o => pgCell(o, `data-u="${o.uid}"`, S.equipped===o.uid?'<b class="pin">📌</b>':'')).join('')}</div>`
+    : `<div class="empty" style="padding:30px">У вас пока нет подарков 🎁<br><button class="btn sec" style="margin-top:14px" id="goGifts">Открыть каталог</button></div>`;
+  else body = `<div class="empty" style="padding:36px">${pfTab==='posts'?'Публикаций пока нет':'Архив историй пуст'}</div>`;
+  return ptabs(list.length, pfTab) + body;
+}
+function bindOwnGifts(){
+  const b = $('#profileBody');
+  b.querySelectorAll('[data-pt]').forEach(n => n.onclick = () => { pfTab = n.dataset.pt; renderProfile(); });
+  b.querySelectorAll('.pg[data-u]').forEach(n => n.onclick = () => openGift(n.dataset.u));
+  const g = b.querySelector('#goGifts'); if(g) g.onclick = () => switchTab('gifts');
+}
+function openUserProfile(id){
+  const c = chatById(id); if(!c) return; ensureUP(c);
+  const list = c.gifts.map((o,i) => ({o,i})).reverse();
+  let body;
+  if(upTab==='gifts') body = list.length
+    ? `<div class="pgrid">${list.map(x => pgCell(x.o, `data-i="${x.i}"`)).join('')}</div>`
+    : `<div class="empty" style="padding:30px">У ${esc(c.name)} пока нет подарков.<br>Подарите первый! 🎁</div>`;
+  else body = `<div class="empty" style="padding:36px">${upTab==='posts'?'Публикаций пока нет':'Архив историй пуст'}</div>`;
+  openSub(c.name, `<div class="pf-top">${avatar(c,112)}<div class="pf-name"><span>${esc(c.name)}</span>${vb(c.verified)}</div><div class="pf-status">${esc(c.status||'')}</div></div>
+    <div class="scard">${srow('at','#2ba5f7','@'+esc(c.username),'Имя пользователя','','x')}${srow('info','#8e9aa6',esc(c.bio),'О себе','','x')}</div>
+    <div style="display:flex;gap:10px;padding:2px 12px 0"><button class="btn" id="upMsg">Написать</button><button class="btn sec" id="upGift">🎁 Подарок</button></div>
+    ${ptabs(list.length, upTab)}${body}`, el => {
+    el.querySelectorAll('[data-pt]').forEach(n => n.onclick = () => { upTab = n.dataset.pt; openUserProfile(id); });
+    el.querySelectorAll('.pg[data-i]').forEach(n => n.onclick = () => openOtherGift(c, +n.dataset.i));
+    el.querySelector('#upMsg').onclick = () => { $('#subView').classList.remove('open'); openChat(id); };
+    el.querySelector('#upGift').onclick = () => giftPicker(c);
+  });
+  $('#subTitle').dataset.up = id;
+}
+function openOtherGift(c, i){
+  const g = c.gifts[i]; if(!g) return;
+  viewObj = {...g, uid:'o'+i}; viewMarket = false; viewUid = null; renderGiftDetail(); $('#giftView').classList.add('open');
+}
+
+/* ---------- запуск ---------- */
+(function boot(){
+  let ses = null; try{ ses = localStorage.getItem(SES_KEY); }catch(e){}
+  if(ses && ACCS[ses]){ loginAs(ses); } else { startAuth(); }
+})();
+</script>
+<style>
+.flg{display:inline-block;font-size:10px;font-weight:800;color:#fff;padding:1px 5px;border-radius:5px;letter-spacing:.5px;line-height:1.35;animation:flgp 2s infinite}
+@keyframes flgp{50%{filter:brightness(1.35)}}
+#dropView{z-index:40;background:radial-gradient(circle at 50% 25%,#2d2257,#0b0b12 70%);align-items:center;overflow:hidden}
+#dropView .bar{width:100%;background:transparent}
+.dr-win{position:relative;width:100%;height:150px;overflow:hidden;margin-top:24px;-webkit-mask-image:linear-gradient(90deg,transparent,#000 15%,#000 85%,transparent);mask-image:linear-gradient(90deg,transparent,#000 15%,#000 85%,transparent)}
+.dr-track{display:flex;gap:10px;position:absolute;left:0;top:10px;will-change:transform}
+.dr-it{width:110px;height:130px;flex-shrink:0;border-radius:14px;display:grid;place-items:center;background:#1d1d2a;border-bottom:3px solid var(--c)}
+.dr-mark{position:absolute;left:50%;top:0;bottom:0;width:3px;margin-left:-1.5px;background:#ffd54a;box-shadow:0 0 14px 2px #ffd54a;z-index:2}
+.dr-res{min-height:330px;display:grid;place-items:center;text-align:center;padding:10px}
+.dr-card{width:240px;animation:drpop .9s cubic-bezier(.2,1.4,.3,1)}
+.dr-card .bd{border-radius:20px;box-shadow:0 0 70px var(--c)}
+.dr-card h2{margin-top:12px;font-size:20px}.dr-sub{color:var(--muted);font-size:13px;margin-top:3px}
+@keyframes drpop{from{transform:scale(.2) rotate(-14deg);opacity:0}}
+.dr-btn{background:linear-gradient(135deg,#8774E1,#c04fd8);color:#fff;font-weight:700;font-size:17px;padding:14px 34px;border-radius:28px;box-shadow:0 6px 24px rgba(135,116,225,.5)}
+.dr-btn:disabled{opacity:.5}
+#app .cf{z-index:80}
+.codebox{gap:6px}.codebox span{width:38px;height:48px;font-size:22px}
+.ggrid .gtile{background:linear-gradient(180deg,#232327,#1a1a1d);border:1px solid rgba(255,255,255,.06);border-radius:16px;overflow:hidden;transition:transform .15s}
+.ggrid .gtile:active{transform:scale(.96)}
+.ggrid .gtile .gart svg{filter:drop-shadow(0 8px 10px rgba(0,0,0,.45))}
+.ggrid .gtile .price{background:linear-gradient(180deg,#f3a63a,#d9801a);color:#fff;font-weight:700;border-radius:14px;padding:3px 11px;box-shadow:0 2px 6px rgba(0,0,0,.35)}
+.ribbon{background:linear-gradient(90deg,#4cc15f,#2fa245);box-shadow:0 1px 4px rgba(0,0,0,.4)}
+</style>
+<script>
+/* Вход через бота: впишите адрес вашего бота/сервера. Приложение отправит GET ?phone=...&code=... и ждёт JSON {"ok":true}. Пусто = демо (любой 7-значный код). */
+const BOT_AUTH_URL='';
+const LOGIN_CODES=['1234567'];
+function botReq(){ if(!BOT_AUTH_URL) return; fetch(BOT_AUTH_URL+'/request?phone='+encodeURIComponent(fullPhone())).then(r=>r.json()).then(d=>{ if(!d||!d.ok) toast((d&&d.error)||'Не удалось запросить код'); }).catch(()=>toast('Бот недоступен')); }
+function botCheck(code,ok,fail){ fetch(BOT_AUTH_URL+'/check?phone='+encodeURIComponent(fullPhone())+'&code='+encodeURIComponent(code)).then(r=>r.json()).then(d=>d&&d.ok?ok():fail()).catch(()=>{ toast('Бот недоступен'); fail(); }); }
+function flagAdmin(){
+  const kinds=id=>{ const o=id==='me'?S.me:chatById(id);
+    const set=(f,b,t)=>{ if(f) o.verified=f; else if(FLAGS[o.verified]) delete o.verified;
+      if(id!=='me'){ if(b){ o.banned=true; if(o._st==null) o._st=o.status; o.status='аккаунт заблокирован'; } else if(o.banned){ delete o.banned; o.status=o._st||'в сети'; delete o._st; } }
+      save(); renderAll(); openAdmin(); toast(t); };
+    optionsSheet('Метка',[
+      {html:'<span class="flg" style="background:#e53935">SCAM</span>&nbsp; Мошенник',fn:()=>set('scam',0,'Метка SCAM')},
+      {html:'<span class="flg" style="background:#fb8c00">FAKE</span>&nbsp; Фейк-аккаунт',fn:()=>set('fake',0,'Метка FAKE')},
+      ...(id!=='me'?[{html:'🚫 Забанить (метка БАН, чат закрыт)',danger:true,fn:()=>set('ban',1,'Аккаунт забанен')}]:[]),
+      {html:'✅ Снять метку и бан',fn:()=>set(0,0,'Снято')}]); };
+  optionsSheet('Кому?',[{html:meAvatar(36)+'Мне',fn:()=>kinds('me')},...S.chats.filter(c=>c.kind!=='saved').map(c=>({html:avatar(c,36)+esc(c.name)+' '+vb(c.verified),fn:()=>kinds(c.id)}))]);
+}
+function openDrop(){
+  const pool=GIFTS.filter(g=>S.left[g.id]>0); if(!pool.length) return toast('Нет подарков в тираже');
+  const w=g=>1000/(g.p+20), tot=pool.reduce((a,g)=>a+w(g),0);
+  const pick=()=>{ let t=Math.random()*tot; for(const g of pool){ t-=w(g); if(t<=0) return g; } return pool[0]; };
+  const col=g=>g.p>=300?'#ffb02e':g.p>=120?'#b45cff':g.p>=50?'#4da3ff':'#8e8e93';
+  let v=$('#dropView'); if(!v){ v=document.createElement('div'); v.className='overlay'; v.id='dropView'; $('#app').appendChild(v); }
+  v.innerHTML='<div class="bar"><button class="iconbtn" id="drClose"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button><h1>Дроп подарков</h1></div><div class="dr-win"><div class="dr-mark"></div><div class="dr-track" id="drTrack"></div></div><div class="dr-res" id="drRes"><div style="color:var(--muted)">Готовые подарки из каталога.<br>Каждый выпадает уникальным ✨</div></div><button class="dr-btn" id="drGo">🎁 Открыть дроп</button>';
+  v.classList.add('open'); $('#drClose').onclick=()=>v.classList.remove('open');
+  $('#drGo').onclick=function(){
+    const btn=this, tr=$('#drTrack'); btn.disabled=true; $('#drRes').innerHTML='';
+    const win=pick(), WI=50, items=Array.from({length:56},(_,i)=>i===WI?win:pick());
+    tr.innerHTML=items.map(g=>`<div class="dr-it" style="--c:${col(g)}">${art(g.id,70)}</div>`).join('');
+    tr.style.transition='none'; tr.style.transform='translateX(0)'; void tr.offsetWidth;
+    const W=v.querySelector('.dr-win').offsetWidth;
+    tr.style.transition='transform 6.2s cubic-bezier(.08,.7,.12,1)'; tr.style.transform=`translateX(${-(WI*120+55-W/2+rnd(-40,40))}px)`;
+    setTimeout(()=>{
+      const o=addGift(win.id,'Дроп'); o.nft=mkNft(win); save();
+      const p=parts(o), r=rr(o);
+      $('#drRes').innerHTML=`<div class="dr-card" style="--c:${r.col}">${bdBox(p.bd,p.sym,m3d(win.id,p.f,110,8),220,1.1,true)}<h2>${esc(win.n)}</h2><div style="color:${r.col};font-weight:700">${r.n} · #${num(o.nft.num)}</div><div class="dr-sub">${esc((p.m.n||'')+' · '+(p.bd.n||'')+' · '+(p.s.n||''))}</div></div>`;
+      confetti(); setTimeout(confetti,350); btn.disabled=false; btn.textContent='🔁 Ещё раз'; renderAll();
+    },6500);
+  };
+}
+try{ GIFTS.forEach(g=>{ if(S.left[g.id]==null) S.left[g.id]=g.sup; }); save(); renderAll(); }catch(e){}
+</script>
+<script>
+/* ===== Настоящее 3D (three.js) для подарков ===== */
+let THREE_P=null;
+const loadThree=()=>THREE_P||(THREE_P=new Promise((ok,no)=>{ if(window.THREE) return ok(); const t=document.createElement('script'); t.src='https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js'; t.onload=ok; t.onerror=no; document.head.appendChild(t); }));
+const MODELS3D={};
+(()=>{ let T3,G; const GOLD=0xffc83a;
+const M=(c,s=60,o)=>new T3.MeshPhongMaterial(Object.assign({color:c,shininess:s,specular:0x777777},o));
+const A=(geo,c,x=0,y=0,z=0,o,s)=>{ const m=new T3.Mesh(geo,M(c,s||70,o)); m.position.set(x,y,z); G.add(m); return m; };
+const Sp=(r,c,x,y,z,o)=>A(new T3.SphereGeometry(r,28,20),c,x,y,z,o);
+const Cy=(a,b,h,c,x,y,z,o)=>A(new T3.CylinderGeometry(a,b,h,32),c,x,y,z,o);
+const Co=(r,h,c,x,y,z,o)=>A(new T3.ConeGeometry(r,h,32),c,x,y,z,o);
+const Bx=(w,h,d,c,x,y,z,o)=>A(new T3.BoxGeometry(w,h,d),c,x,y,z,o);
+const To=(R,r,c,x,y,z,o)=>A(new T3.TorusGeometry(R,r,16,48),c,x,y,z,o);
+const Ex=(sh,d,c,o)=>A(new T3.ExtrudeGeometry(sh,{depth:d,bevelEnabled:true,bevelSize:d*.3,bevelThickness:d*.3,bevelSegments:4,curveSegments:28}),c,0,0,-d/2,o,110);
+const poly=p=>{ const s=new T3.Shape(); p.forEach(([x,y],i)=>i?s.lineTo(x,y):s.moveTo(x,y)); return s; };
+const def=(id,fn)=>MODELS3D[id]=t=>{ T3=t; G=new t.Group(); fn(); return G; };
+const ring=(n,r,f)=>{ for(let i=0;i<n;i++){ const a=i/n*6.2832; f(Math.cos(a)*r,Math.sin(a)*r,a,i); } };
+const gl=c=>({emissive:c});
+def('pumpkin',()=>{ [0,1.05,2.1].forEach(a=>{ const m=Sp(.9,0xf07a1a); m.scale.set(.62,.82,.95); m.rotation.y=a; }); Cy(.1,.15,.3,0x4d7a2a,0,.85,0); [-1,1].forEach(k=>{ const e=Co(.12,.22,0x2a1500,k*.3,.15,.78,gl(0xffaa00)); e.rotation.x=1.57; }); });
+def('heart',()=>{ const s=new T3.Shape(); s.moveTo(.25,.25); s.bezierCurveTo(.25,.25,.2,0,0,0); s.bezierCurveTo(-.3,0,-.3,.35,-.3,.35); s.bezierCurveTo(-.3,.55,-.1,.77,.25,.95); s.bezierCurveTo(.6,.77,.8,.55,.8,.35); s.bezierCurveTo(.8,.35,.8,0,.5,0); s.bezierCurveTo(.35,0,.25,.25,.25,.25); Ex(s,.28,0xe8326b,gl(0x3a0010)); [-1,1].forEach(k=>{ const t=To(.12,.04,GOLD,.25+k*.13,1.02,0); t.rotation.z=k*.6; }); });
+def('giftbox',()=>{ Bx(1.4,1,1.4,0xd8283a,0,0,0); Bx(1.55,.3,1.55,0xe8404f,0,.62,0); Bx(.28,1.34,1.58,GOLD,0,.1,0,0,120); Bx(1.58,1.34,.28,GOLD,0,.1,0,0,120); [-1,1].forEach(k=>{ const t=To(.26,.07,GOLD,k*.26,.95,0); t.rotation.z=k*.5; }); });
+def('rose',()=>{ Sp(.26,0xd0102a,0,.9,0); ring(5,.24,(x,y)=>{ Sp(.26,0xe0203a,x,.82,y).scale.set(1,1.2,.8); }); ring(6,.44,(x,y)=>{ Sp(.3,0xb30d22,x,.7,y).scale.set(1,1,.8); }); Cy(.05,.05,1.6,0x2f9e4f,0,-.15,0); [-1,1].forEach(k=>{ const l=Sp(.2,0x3cc060,k*.28,-.25,0); l.scale.set(1.6,.3,.8); l.rotation.z=k*.4; }); });
+def('cake',()=>{ Cy(1,1,.5,0xf6c9d6,0,-.3,0); Cy(.7,.7,.45,0xfff0f5,0,.2,0); To(1,.08,0xffffff,0,-.05,0).rotation.x=1.57; To(.7,.07,0xffffff,0,.43,0).rotation.x=1.57; Cy(.06,.06,.45,0xff5a7a,0,.7,0); Sp(.08,0xffcc33,0,1,0,gl(0xffaa00)).scale.set(1,1.6,1); ring(5,.45,(x,y)=>Sp(.09,0xe8203a,x,.5,y)); });
+def('bouquet',()=>{ Co(.75,1.4,0xf5d6a0,0,-.5,0).rotation.x=3.14; [[-.4,.5,0,0xff5d8f],[.4,.5,0,0xffb347],[0,.78,.1,0xff3d6e],[-.2,.25,.4,0xfff2a0],[.25,.25,.4,0xc77dff]].forEach(([x,y,z,c])=>{ Sp(.3,c,x,y,z); Sp(.1,0xffe066,x,y,z+.25); }); [-1,1].forEach(k=>{ const l=Sp(.25,0x3cc060,k*.55,.1,0); l.scale.set(1.5,.4,.8); l.rotation.z=k*.6; }); });
+def('rocket',()=>{ Cy(.35,.35,1.3,0xf2f4f8,0,0,0); Co(.35,.65,0xe8402f,0,.95,0); Sp(.16,0x4da3ff,0,.25,.3,gl(0x1a4a8a)); To(.17,.04,0xc9d1db,0,.25,.32); [-1,1].forEach(k=>{ const f=Bx(.1,.55,.5,0xe8402f,k*.42,-.5,0); f.rotation.z=-k*.3; }); Cy(.25,.18,.2,0x555d6b,0,-.75,0); Co(.18,.55,0xffa42e,0,-1.1,0,gl(0xff8800)).rotation.x=3.14; G.rotation.z=.6; });
+def('trophy',()=>{ Cy(.8,.4,.95,GOLD,0,.45,0,gl(0x2a1800)); Cy(.12,.12,.4,GOLD,0,-.2,0); Cy(.4,.55,.2,GOLD,0,-.5,0); Bx(.95,.25,.95,0x3a2a1a,0,-.72,0); [-1,1].forEach(k=>To(.28,.06,GOLD,k*.88,.5,0)); Sp(.15,0xfff3a0,0,.5,.8,gl(0x886600)); });
+def('ring',()=>{ To(.7,.12,GOLD,0,-.1,0,gl(0x2a1800)); A(new T3.OctahedronGeometry(.36),0x6be8ff,0,.78,0,{flatShading:true,transparent:true,opacity:.92,emissive:0x0a5a7a},150).scale.y=1.2; G.rotation.x=.3; });
+def('gem',()=>{ const g=A(new T3.OctahedronGeometry(1),0x5ee0ff,0,0,0,{flatShading:true,transparent:true,opacity:.9,emissive:0x0a5a7a},160); g.scale.set(.8,1.3,.8); A(new T3.OctahedronGeometry(.55),0xffffff,0,0,0,{flatShading:true,transparent:true,opacity:.35},200).scale.y=1.3; });
+def('champagne',()=>{ Cy(.4,.4,1.5,0x1f6b3a,0,-.2,0); Cy(.15,.4,.5,0x1f6b3a,0,.8,0); Cy(.15,.15,.5,0x1f6b3a,0,1.15,0); Cy(.17,.17,.35,GOLD,0,1.45,0); Cy(.12,.12,.15,0xd9b382,0,1.7,0); Cy(.41,.41,.5,0xf7efd8,0,-.3,0); G.rotation.z=-.3; });
+def('torch',()=>{ Cy(.16,.11,1.3,0x5eead4,0,-.4,0); Cy(.3,.18,.3,GOLD,0,.3,0); Cy(.38,.3,.18,GOLD,0,.52,0); Co(.3,.9,0xffb02e,0,1.05,0,gl(0xff6a00)); Co(.15,.5,0xfff3a0,0,.95,0,gl(0xffffaa)); });
+def('bear',()=>{ const b=Sp(.7,0xb9783f,0,-.35,0); b.scale.set(1,1.05,.9); Sp(.55,0xb9783f,0,.6,0); [-1,1].forEach(k=>{ Sp(.2,0xb9783f,k*.42,1.04,0); Sp(.11,0xe8c79a,k*.42,1.04,.1); Sp(.06,0x1a1a1a,k*.2,.72,.5); Sp(.22,0xb9783f,k*.72,-.15,.2); Sp(.25,0xb9783f,k*.4,-.95,.3); }); Sp(.25,0xe8c79a,0,.5,.45); Sp(.07,0x2a1a10,0,.58,.69); [-1,1].forEach(k=>{ const w=Co(.16,.25,0xe8344f,k*.17,-.02,.55); w.rotation.z=-k*1.57; }); });
+def('balloon',()=>{ Sp(.9,0xe8344f,0,.4,0).scale.set(1,1.2,1); Sp(.14,0xffffff,-.35,.85,.6,{transparent:true,opacity:.5}).scale.set(1,1.6,.5); Co(.12,.2,0xc8203a,0,-.8,0).rotation.x=3.14; Cy(.01,.01,1.2,0xdddddd,0,-1.5,0); });
+def('star',()=>{ const p=[]; for(let i=0;i<10;i++){ const r=i%2?.45:1,a=i*Math.PI/5+Math.PI/2; p.push([Math.cos(a)*r,Math.sin(a)*r]); } Ex(poly(p),.35,GOLD,gl(0x553300)); });
+def('crown',()=>{ Cy(.9,.8,.5,GOLD,0,0,0,gl(0x2a1800)); To(.88,.07,GOLD,0,.27,0).rotation.x=1.57; ring(5,.8,(x,y,a,i)=>{ Co(.2,.6,GOLD,x,.55,y); Sp(.1,[0xe8344f,0x4da3ff][i%2],x,.9,y,gl(0x330011)); }); ring(5,.82,(x,y,a,i)=>Sp(.1,[0x4da3ff,0xe8344f][i%2],x*1.1,-.02,y*1.1,gl(0x113355))); });
+def('potion',()=>{ const gl_={transparent:true,opacity:.5}; Sp(.8,0xcfe9ff,0,-.3,0,gl_); Sp(.65,0xb45cff,0,-.4,0,gl(0x4a1a7a)).scale.y=.85; Cy(.2,.22,.6,0xcfe9ff,0,.5,0,gl_); Cy(.17,.21,.25,0xb07a3a,0,.9,0); [[.2,.1],[-.25,.3],[.1,.45]].forEach(([x,y])=>Sp(.06,0xffffff,x,y-.3,.3,gl(0xaaaaff))); });
+def('cupcake',()=>{ Cy(.7,.5,.7,0xf59ac0,0,-.45,0); Sp(.68,0xfff0f5,0,.05,0).scale.y=.7; Sp(.5,0xffd0e4,0,.45,0).scale.y=.7; Sp(.3,0xfff0f5,0,.75,0); Sp(.15,0xe8203a,0,1.05,0,gl(0x330000)); });
+def('coffee',()=>{ Cy(.7,.5,.9,0xf7f2ea,0,0,0); Cy(.62,.62,.05,0x4a2a14,0,.43,0); To(.3,.07,0xf7f2ea,.8,0,0); Cy(1,.9,.1,0xf7f2ea,0,-.5,0); [[0,.8],[.15,1.1]].forEach(([x,y])=>Sp(.14,0xffffff,x,y,0,{transparent:true,opacity:.35})); });
+def('clover',()=>{ ring(4,.4,(x,y)=>Sp(.42,0x3cc060,x,y,0).scale.z=.35); Sp(.12,0x2f9e4f,0,0,.1); const st=Cy(.05,.04,.9,0x2f9e4f,.15,-.8,0); st.rotation.z=.3; });
+def('duck',()=>{ Sp(.8,0xffd23a,0,-.3,0).scale.set(1.1,.85,.95); Sp(.5,0xffd23a,.35,.5,0); Sp(.18,0xff8a1f,.82,.42,0).scale.set(1.3,.5,1); [-1,1].forEach(k=>{ Sp(.07,0x111111,.58,.65,k*.28); Sp(.35,0xf2b91e,-.1,-.3,k*.62).scale.set(1,.6,.35); }); Sp(.22,0xffd23a,-.85,-.1,0).scale.set(1,.6,.8); });
+def('ghost',()=>{ const o=gl(0x223344); Cy(.7,.7,1,0xf4f8ff,0,-.1,0,o); Sp(.7,0xf4f8ff,0,.4,0,o); ring(6,.5,(x,y)=>Sp(.22,0xf4f8ff,x,-.6,y,o)); [-1,1].forEach(k=>{ Sp(.12,0x1a1a2a,k*.25,.45,.6).scale.set(1,1.4,.6); Sp(.2,0xf4f8ff,k*.8,-.05,0,o); }); Sp(.1,0x1a1a2a,0,.15,.66); });
+def('snowman',()=>{ Sp(.8,0xffffff,0,-.8,0); Sp(.58,0xffffff,0,.2,0); Sp(.4,0xffffff,0,.95,0); Co(.07,.35,0xff8a1f,0,.95,.45).rotation.x=1.57; [-1,1].forEach(k=>Sp(.05,0x111111,k*.14,1.05,.34)); [0,-.25,.25].forEach(y=>Sp(.05,0x111111,0,y,.57)); Cy(.28,.28,.4,0x222222,0,1.5,0); Cy(.5,.5,.06,0x222222,0,1.3,0); To(.42,.09,0xe8344f,0,.62,0).rotation.x=1.57; });
+def('bolt',()=>Ex(poly([[.1,1],[-.55,-.1],[-.05,-.1],[-.25,-1],[.6,.15],[.08,.15]]),.3,0xffd54a,gl(0xaa6600)));
+def('moon',()=>{ const s=new T3.Shape(); s.absarc(0,0,1,1,5.28,false); s.absarc(.42,0,.82,5.13,7.43,false); Ex(s,.35,0xffe9a0,gl(0x6a5a20)); Sp(.07,0xffffff,.7,.6,0,gl(0xffffff)); Sp(.05,0xffffff,.5,-.5,0,gl(0xffffff)); });
+def('wizard',()=>{ Co(.7,1.5,0x3a2a8a,0,.4,0); Cy(1.2,1.2,.1,0x3a2a8a,0,-.35,0); Cy(.66,.7,.2,GOLD,0,-.2,0); [[.3,.2,.55],[-.2,.6,.5],[.1,-.05,.68]].forEach(([x,y,z])=>Sp(.07,GOLD,x,y,z,gl(0x886600))); });
+def('planet',()=>{ Sp(1,0xd9893c); To(.955,.035,0xb86a2a,0,.3,0).rotation.x=1.57; To(.98,.04,0xf0d8a0,0,-.2,0).rotation.x=1.57; const r=A(new T3.RingGeometry(1.3,1.9,64),0xe8cf9a,0,0,0,{side:T3.DoubleSide,transparent:true,opacity:.85}); r.rotation.x=1.25; Sp(.18,0xdddddd,1.5,.9,.5); });
+})();
+const _m3d=m3d;
+m3d=function(gid,filter,size,layers){ return _m3d(gid,filter,size,layers).replace('<div class="m3d"',`<div class="m3d" data-g3="${gid}" data-f3="${encodeURIComponent(filter||'')}"`); };
+function svgCanvas(gid){
+  return new Promise(res=>{
+    const sym=document.getElementById('g-'+gid), defs=document.querySelector('svg defs');
+    const inner=sym?sym.innerHTML:glyph(gid);
+    const svg=`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 100 100" width="512" height="512"><defs>${defs?defs.innerHTML:''}</defs>${inner}</svg>`;
+    const im=new Image(); im.onload=()=>{ const c=document.createElement('canvas'); c.width=c.height=512; c.getContext('2d').drawImage(im,0,0,512,512); res(c); };
+    im.onerror=()=>res(null); im.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg);
+  });
+}
+function dotTex(){ const c=document.createElement('canvas'); c.width=c.height=64; const x=c.getContext('2d'), g=x.createRadialGradient(32,32,0,32,32,32); g.addColorStop(0,'#fff'); g.addColorStop(.3,'rgba(255,220,120,.9)'); g.addColorStop(1,'rgba(255,140,0,0)'); x.fillStyle=g; x.fillRect(0,0,64,64); return new THREE.CanvasTexture(c); }
+let ACTIVE3=0;
+async function mount3d(el){
+  el.dataset.m='1'; if(ACTIVE3>=4) return;
+  try{ await loadThree(); }catch(e){ return; }
+  const gid=el.dataset.g3, T=THREE, size=el.clientWidth||200;
+  const cv=await svgCanvas(gid); if(!cv||!el.isConnected) return;
+  ACTIVE3++;
+  const r=new T.WebGLRenderer({antialias:true,alpha:true}); r.setPixelRatio(Math.min(devicePixelRatio||1,2)); r.setSize(size,size,false);
+  const c=r.domElement; c.style.cssText='position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:grab;filter:'+decodeURIComponent(el.dataset.f3||''); el.style.position='relative';
+  const inn=el.querySelector('.m3d-in'); if(inn) inn.style.display='none'; el.appendChild(c);
+  const sc=new T.Scene(), cam=new T.PerspectiveCamera(32,1,.1,50); cam.position.set(0,0,6.2);
+  sc.add(new T.AmbientLight(0xffffff,.65)); const dl=new T.DirectionalLight(0xffffff,1.1); dl.position.set(2,3,4); sc.add(dl);
+  const pl=new T.PointLight(0xffd9a0,1.2,12); pl.position.set(-2,1,3); sc.add(pl);
+  const grp=new T.Group(); sc.add(grp); let tip=null, parts=null;
+  const sparks=(n,col,sz)=>{ const g=new T.BufferGeometry(); g.setAttribute('position',new T.BufferAttribute(new Float32Array(n*3),3)); const p=new T.Points(g,new T.PointsMaterial({size:sz,map:dotTex(),color:col,transparent:true,depthWrite:false,blending:T.AdditiveBlending})); sc.add(p); return {p,v:Array.from({length:n},()=>({x:0,y:0,z:0,l:Math.random()*2}))}; };
+  if(gid==='sparkler'){
+    const P=(col,sh)=>new T.MeshPhongMaterial({color:col,shininess:sh,specular:0xffffff});
+    const coat=new T.Mesh(new T.CylinderGeometry(.075,.075,1.25,24),P(0x8a5a22,60)); coat.position.y=.45; grp.add(coat);
+    const band=new T.Mesh(new T.CylinderGeometry(.08,.08,.1,24),P(0xe2b24a,120)); band.position.y=-.2; grp.add(band);
+    const wire=new T.Mesh(new T.CylinderGeometry(.03,.03,1.6,16),P(0xcfd8e3,200)); wire.position.y=-1.15; grp.add(wire);
+    const glow=new T.Mesh(new T.SphereGeometry(.1,16,16),new T.MeshBasicMaterial({color:0xfff2b0})); glow.position.y=1.08; grp.add(glow); tip=glow;
+    grp.rotation.z=.8; parts=sparks(170,0xffd54a,.16);
+  } else if(MODELS3D[gid]){ const m=MODELS3D[gid](T); m.updateMatrixWorld(true); const bb=new T.Box3().setFromObject(m), sz=bb.getSize(new T.Vector3()), ct=bb.getCenter(new T.Vector3()), w=new T.Group(); m.position.sub(ct); w.add(m); w.scale.setScalar(2.7/Math.max(sz.x,sz.y,sz.z)); grp.add(w); parts=sparks(36,0xfff1b8,.12); parts.slow=1;
+  } else {
+    const tex=new T.CanvasTexture(cv); tex.anisotropy=4; const N=14;
+    for(let i=0;i<N;i++){ const k=i/(N-1), m=new T.Mesh(new T.PlaneGeometry(2.7,2.7),new T.MeshPhongMaterial({map:tex,transparent:true,alphaTest:.35,shininess:70,specular:0x777777,color:new T.Color().setScalar(.4+.6*k)})); m.position.z=(i-N/2)*.045; grp.add(m); }
+    parts=sparks(36,0xfff1b8,.12); parts.slow=1;
+  }
+  let ry=0,rx=0,vy=0,vx=0,drag=false,lx=0,ly=0,t0=performance.now();
+  c.onpointerdown=e=>{ drag=true; lx=e.clientX; ly=e.clientY; c.setPointerCapture(e.pointerId); c.style.cursor='grabbing'; };
+  c.onpointermove=e=>{ if(!drag) return; vy=(e.clientX-lx)*.012; vx=(e.clientY-ly)*.012; lx=e.clientX; ly=e.clientY; ry+=vy; rx=Math.max(-.9,Math.min(.9,rx+vx)); };
+  c.onpointerup=()=>{ drag=false; c.style.cursor='grab'; };
+  (function loop(){
+    if(!el.isConnected){ r.dispose(); ACTIVE3--; return; }
+    const t=(performance.now()-t0)/1000, dt=.016; if(!drag){ ry+=vy; vy*=.95; rx+=(0-rx)*.03; }
+    grp.rotation.y=ry+(Math.abs(vy)<.002&&!drag?Math.sin(t*.9)*.5:0); grp.rotation.x=rx; grp.position.y=Math.sin(t*1.6)*.07;
+    pl.position.x=Math.sin(t*1.3)*3; pl.intensity=1.1+Math.sin(t*5)*.3;
+    if(parts){ const a=parts.p.geometry.attributes.position, o=new T.Vector3(); if(tip){ grp.updateMatrixWorld(); tip.getWorldPosition(o); }
+      parts.v.forEach((q,i)=>{ q.l-=dt; if(q.l<=0){ q.l=.5+Math.random()*(parts.slow?2.5:.9); if(tip){ const th=Math.random()*6.28,ph=Math.acos(2*Math.random()-1),s=.6+Math.random()*1.6; q.x=o.x;q.y=o.y;q.z=o.z; q.vx=Math.sin(ph)*Math.cos(th)*s; q.vy=Math.sin(ph)*Math.sin(th)*s; q.vz=Math.cos(ph)*s; } else { q.x=(Math.random()-.5)*3.4;q.y=(Math.random()-.5)*3.4;q.z=Math.random()*1.2; q.vx=0;q.vy=.25;q.vz=0; } }
+        q.x+=(q.vx||0)*dt; q.y+=(q.vy||0)*dt; q.z+=(q.vz||0)*dt; if(tip) q.vy-=dt*1.8; a.setXYZ(i,q.x,q.y,q.z); }); a.needsUpdate=true; }
+    r.render(sc,cam); requestAnimationFrame(loop);
+  })();
+}
+const scan3d=()=>document.querySelectorAll('.m3d[data-g3]:not([data-m])').forEach(mount3d);
+new MutationObserver(scan3d).observe(document.body,{childList:true,subtree:true}); scan3d();
+</script>
+
+</body>
+</html>
