@@ -596,7 +596,7 @@ if (BOT_TOKEN && process.env.RENDER) {
         reply_markup: {
           inline_keyboard: [
             [{ text: 'Получить номер', callback_data: 'get_number' }],
-            [{ text: 'Открыть Vopgram', web_app: { url: process.env.APP_URL || 'http://localhost:3000' } }],
+            [{ text: 'Открыть сайт Vopgram', url: process.env.APP_URL || 'http://localhost:3000' }],
             [{ text: 'Админ-панель', callback_data: 'admin_panel' }],
           ]
         }
