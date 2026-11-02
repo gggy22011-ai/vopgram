@@ -3,7 +3,7 @@
   "appName": "Vopgram",
   "webDir": "public",
   "server": {
-    "url": "https://five-heads-check.loca.lt",
+    "url": "https://vopgram.onrender.com",
     "cleartext": false
   },
   "android": {
