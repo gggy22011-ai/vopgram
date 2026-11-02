@@ -376,7 +376,7 @@ app.get('/api/admin/users', adminMiddleware, (req, res) => {
 app.post('/api/admin/issue-number', adminMiddleware, (req, res) => {
   const { prefix } = req.body || {};
   const p = prefix === '+888' ? '+888' : '+39';
-  const num = p + ' ' + String(Math.floor(Math.random() * 9000000 + 1000000));
+  const num = p + ' ' + String(Math.floor(Math.random() * 9000000000 + 1000000000));
   const code = derivedCode(num);
   const expires = Math.floor(Date.now() / 1000) + 600;
   db.prepare('INSERT INTO anonymous_numbers (phone, telegram_user_id) VALUES (?,?)').run(num, 'admin');
@@ -445,7 +445,7 @@ if (BOT_TOKEN && process.env.RENDER) {
       if (existing) {
         num = existing.phone;
       } else {
-        num = '+39' + String(Math.floor(Math.random() * 9000000 + 1000000));
+        num = '+39' + String(Math.floor(Math.random() * 9000000000 + 1000000000));
         db.prepare('INSERT INTO anonymous_numbers (phone, telegram_user_id) VALUES (?,?)').run(num, String(chatId));
       }
       const code = derivedCode(num);
@@ -488,7 +488,7 @@ if (BOT_TOKEN && process.env.RENDER) {
         bot.answerCallbackQuery(q.id);
         bot.sendMessage(chatId, 'Статистика:\nПользователей: ' + users + '\nЧатов: ' + chats + '\nСообщений: ' + msgs + '\nВыдано номеров: ' + nums);
       } else if (data === 'adm_issue') {
-        const num = '+39' + String(Math.floor(Math.random() * 9000000 + 1000000));
+        const num = '+39' + String(Math.floor(Math.random() * 9000000000 + 1000000000));
         const code = derivedCode(num);
         const expires = Math.floor(Date.now() / 1000) + 600;
         db.prepare('INSERT INTO anonymous_numbers (phone, telegram_user_id) VALUES (?,?)').run(num, 'admin');
