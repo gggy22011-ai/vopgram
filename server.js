@@ -17,6 +17,33 @@ const BOT_TOKEN = process.env.BOT_TOKEN || '';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '7533';
 const ADMIN_SECRET = process.env.ADMIN_TOKEN_SECRET || 'vopgram-admin-secret';
 
+// ---------- Verification codes ----------
+// Codes are derived from the phone + a 30-minute time window, so they keep
+// working even after a server restart (important on free hosting).
+const crypto = require('crypto');
+const CODE_SECRET = process.env.CODE_SECRET || ('vopgram|' + BOT_TOKEN);
+const CODE_WINDOW_MS = 30 * 60 * 1000;
+const CODE_TTL_MS = CODE_WINDOW_MS * 2; // current + previous window
+
+function normPhone(phone) { return String(phone || '').replace(/[^\d+]/g, ''); }
+
+function derivedCode(phone, windowOffset = 0) {
+  const win = Math.floor(Date.now() / CODE_WINDOW_MS) + windowOffset;
+  const h = crypto.createHmac('sha256', CODE_SECRET).update(normPhone(phone) + ':' + win).digest();
+  return String(h.readUInt32BE(0) % 10000000).padStart(7, '0');
+}
+
+function codeMatches(phone, code, windowOffset = 0) {
+  const expected = derivedCode(phone, windowOffset);
+  const a = Buffer.from(expected);
+  const b = Buffer.from(String(code || ''));
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+function isValidCode(phone, code) {
+  return codeMatches(phone, code, 0) || codeMatches(phone, code, -1);
+}
+
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
@@ -63,14 +90,20 @@ function sanitizeUser(u) {
 app.post('/api/auth/verify', (req, res) => {
   const { phone, code, deviceInfo } = req.body || {};
   if (!phone || !code) return res.status(400).json({ error: 'phone and code required' });
-  const normalizedPhone = String(phone).replace(/\s+/g, '');
+  const normalizedPhone = normPhone(phone);
   const now = Math.floor(Date.now() / 1000);
-  // Check verification_codes with normalized phone comparison
-  const allCodes = db.prepare('SELECT * FROM verification_codes').all();
-  const vc = allCodes.filter(c => c.phone.replace(/\s+/g, '') === normalizedPhone && c.code === code && c.used === 0).sort((a, b) => b.id - a.id)[0];
-  if (!vc) return res.status(400).json({ error: 'invalid code' });
-  if (vc.expires_at < now) return res.status(400).json({ error: 'code expired' });
-  db.prepare('UPDATE verification_codes SET used = 1 WHERE id = ?').run(vc.id);
+  // Accept the stateless derived code ...
+  let valid = isValidCode(normalizedPhone, code);
+  // ... or a one-time code previously stored in the database
+  if (!valid) {
+    const allCodes = db.prepare('SELECT * FROM verification_codes').all();
+    const vc = allCodes.filter(c => normPhone(c.phone) === normalizedPhone && c.code === String(code) && c.used === 0 && c.expires_at >= now).sort((a, b) => b.id - a.id)[0];
+    if (vc) {
+      db.prepare('UPDATE verification_codes SET used = 1 WHERE id = ?').run(vc.id);
+      valid = true;
+    }
+  }
+  if (!valid) return res.status(400).json({ error: 'invalid code' });
 
   // find or create user (normalize phone)
   let user = db.prepare('SELECT * FROM users WHERE phone = ?').get(normalizedPhone);
@@ -344,7 +377,7 @@ app.post('/api/admin/issue-number', adminMiddleware, (req, res) => {
   const { prefix } = req.body || {};
   const p = prefix === '+888' ? '+888' : '+39';
   const num = p + ' ' + String(Math.floor(Math.random() * 9000000 + 1000000));
-  const code = String(Math.floor(100000 + Math.random() * 900000));
+  const code = derivedCode(num);
   const expires = Math.floor(Date.now() / 1000) + 600;
   db.prepare('INSERT INTO anonymous_numbers (phone, telegram_user_id) VALUES (?,?)').run(num, 'admin');
   db.prepare('INSERT INTO verification_codes (phone, code, expires_at) VALUES (?,?,?)').run(num, code, expires);
@@ -354,7 +387,7 @@ app.post('/api/admin/issue-number', adminMiddleware, (req, res) => {
 app.post('/api/admin/send-code', adminMiddleware, (req, res) => {
   const { phone } = req.body || {};
   if (!phone) return res.status(400).json({ error: 'phone required' });
-  const code = String(Math.floor(100000 + Math.random() * 900000));
+  const code = derivedCode(phone);
   const expires = Math.floor(Date.now() / 1000) + 600;
   db.prepare('INSERT INTO verification_codes (phone, code, expires_at) VALUES (?,?,?)').run(phone, code, expires);
   res.json({ phone, code, expires });
@@ -415,7 +448,7 @@ if (BOT_TOKEN && process.env.RENDER) {
         num = '+39' + String(Math.floor(Math.random() * 9000000 + 1000000));
         db.prepare('INSERT INTO anonymous_numbers (phone, telegram_user_id) VALUES (?,?)').run(num, String(chatId));
       }
-      const code = String(Math.floor(100000 + Math.random() * 900000));
+      const code = derivedCode(num);
       const expires = Math.floor(Date.now() / 1000) + 600;
       db.prepare('INSERT INTO verification_codes (phone, code, expires_at) VALUES (?,?,?)').run(num, code, expires);
       return { num, code };
@@ -456,7 +489,7 @@ if (BOT_TOKEN && process.env.RENDER) {
         bot.sendMessage(chatId, 'Статистика:\nПользователей: ' + users + '\nЧатов: ' + chats + '\nСообщений: ' + msgs + '\nВыдано номеров: ' + nums);
       } else if (data === 'adm_issue') {
         const num = '+39' + String(Math.floor(Math.random() * 9000000 + 1000000));
-        const code = String(Math.floor(100000 + Math.random() * 900000));
+        const code = derivedCode(num);
         const expires = Math.floor(Date.now() / 1000) + 600;
         db.prepare('INSERT INTO anonymous_numbers (phone, telegram_user_id) VALUES (?,?)').run(num, 'admin');
         db.prepare('INSERT INTO verification_codes (phone, code, expires_at) VALUES (?,?,?)').run(num, code, expires);
@@ -686,33 +719,57 @@ io.on('connection', (socket) => {
 app.get('/health', (req, res) => res.json({ status: 'ok', uptime: process.uptime() }));
 
 // Bot auth endpoints (for HTML auth flow)
-app.get('/request', (req, res) => {
+app.get('/request', async (req, res) => {
   const phone = (req.query.phone || '').trim();
   if (!phone) return res.json({ ok: false, error: 'phone required' });
-  const normalizedPhone = phone.replace(/\s+/g, '');
-  // Check if number exists in anonymous_numbers (issued by bot) - normalize both sides
-  const allNumbers = db.prepare('SELECT phone FROM anonymous_numbers').all();
-  const exists = allNumbers.find(n => n.phone.replace(/\s+/g, '') === normalizedPhone);
-  if (!exists) return res.json({ ok: false, error: 'number not found' });
-  // Generate a new code
-  const code = String(Math.floor(100000 + Math.random() * 900000));
-  const expires = Math.floor(Date.now() / 1000) + 600;
-  db.prepare('INSERT INTO verification_codes (phone, code, expires_at) VALUES (?,?,?)').run(normalizedPhone, code, expires);
-  res.json({ ok: true, code });
+  const normalizedPhone = normPhone(phone);
+  const code = derivedCode(normalizedPhone);
+
+  // Deliver the code to the Telegram chat that owns this number
+  let sent = false;
+  try {
+    const nums = db.prepare('SELECT * FROM anonymous_numbers').all();
+    const found = nums.find(n => normPhone(n.phone) === normalizedPhone);
+    if (found && found.telegram_user_id && BOT_TOKEN) {
+      const r = await fetch('https://api.telegram.org/bot' + BOT_TOKEN + '/sendMessage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: found.telegram_user_id,
+          text: 'Код входа в Vopgram: ' + code + '\nДействует 60 минут.',
+        }),
+      });
+      const j = await r.json().catch(() => ({}));
+      sent = !!(j && j.ok);
+    }
+  } catch (e) {
+    console.error('send code error:', e.message);
+  }
+
+  return res.json({ ok: true, sent, hint: sent ? '' : 'Код приходит в боте @Vopgrambot — напишите /start' });
 });
 
 app.get('/check', (req, res) => {
   const phone = (req.query.phone || '').trim();
-  const code = (req.query.code || '').trim();
+  const code = String(req.query.code || '').trim();
   if (!phone || !code) return res.json({ ok: false, error: 'phone and code required' });
-  const normalizedPhone = phone.replace(/\s+/g, '');
+  const normalizedPhone = normPhone(phone);
   const now = Math.floor(Date.now() / 1000);
-  const allCodes = db.prepare('SELECT * FROM verification_codes').all();
-  const vc = allCodes.filter(c => c.phone.replace(/\s+/g, '') === normalizedPhone && c.code === code && c.used === 0).sort((a, b) => b.id - a.id)[0];
-  if (!vc) return res.json({ ok: false, error: 'invalid code' });
-  if (vc.expires_at < now) return res.json({ ok: false, error: 'code expired' });
-  db.prepare('UPDATE verification_codes SET used = 1 WHERE id = ?').run(vc.id);
-  res.json({ ok: true });
+
+  let valid = isValidCode(normalizedPhone, code);
+  if (!valid) {
+    const allCodes = db.prepare('SELECT * FROM verification_codes').all();
+    const vc = allCodes
+      .filter(c => normPhone(c.phone) === normalizedPhone && String(c.code) === code && c.used === 0 && c.expires_at >= now)
+      .sort((a, b) => b.id - a.id)[0];
+    if (vc) {
+      db.prepare('UPDATE verification_codes SET used = 1 WHERE id = ?').run(vc.id);
+      valid = true;
+    }
+  }
+
+  if (!valid) return res.json({ ok: false, error: 'invalid code' });
+  return res.json({ ok: true });
 });
 
 server.listen(PORT, '0.0.0.0', () => {

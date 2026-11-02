@@ -1276,11 +1276,11 @@ function renderAuth(){
     el.innerHTML = `${LOGO}<h2>Vopgram</h2><p class="sub">Подтвердите код страны и введите свой номер телефона.</p>
       <div class="afield" id="cc"><label>Страна</label><span class="cc">${c[0]} ${c[1]}</span><span style="margin-left:auto;color:var(--muted)">▾</span></div>
       <div class="afield"><label>Номер телефона</label><span class="cc">+${c[2]}</span><input id="ph" type="tel" inputmode="numeric" placeholder="000 000 00 00" value="${fmtDigits(A.digits)}" autocomplete="tel"></div>
-      <button class="abtn" id="go" ${A.digits.length<c[3]?'disabled':''}>Продолжить</button>
+      <button class="abtn" id="go" ${A.digits.length?'':'disabled'}>Продолжить</button>
       <p class="sub" style="font-size:13px;margin-top:18px">Код входа выдаст бот.</p>`;
     $('#cc').onclick = countrySheet;
     const ph = $('#ph'), go = $('#go');
-    ph.oninput = () => { A.digits = ph.value.replace(/\D/g,'').slice(0,c[4]); ph.value = fmtDigits(A.digits); go.disabled = A.digits.length<c[3]; };
+    ph.oninput = () => { A.digits = ph.value.replace(/\D/g,'').slice(0,Math.max(c[4],12)); ph.value = fmtDigits(A.digits); go.disabled = !A.digits.length; };
     ph.onkeydown = e => { if(e.key==='Enter' && !go.disabled) go.click(); };
     go.onclick = () => { A.step='code'; botReq(); A.entered=''; A.cooldown=30; renderAuth(); };
     setTimeout(()=>ph.focus(),50);
@@ -1297,8 +1297,7 @@ function renderAuth(){
     ci.oninput = () => {
       A.entered = ci.value.replace(/\D/g,'').slice(0,7); ci.value = A.entered; paint(); $('#cb').classList.remove('err');
       if(A.entered.length === 7){
-        if(!BOT_AUTH_URL && LOGIN_CODES.includes(A.entered)) afterCode(); else (BOT_AUTH_URL ? botCheck : (c,o,f)=>f())(A.entered, afterCode, ()=>{ $('#cb').classList.add('err'); toast('Неверный код'); setTimeout(()=>{ A.entered=''; ci.value=''; $('#cb').classList.remove('err'); paint(); },600); }); if(1) ;
-        else { $('#cb').classList.add('err'); toast('Неверный код'); setTimeout(()=>{ A.entered=''; ci.value=''; $('#cb').classList.remove('err'); paint(); },600); }
+        botCheck(A.entered, afterCode, () => { $('#cb').classList.add('err'); toast('Неверный код'); setTimeout(()=>{ A.entered=''; ci.value=''; $('#cb').classList.remove('err'); paint(); },600); });
       }
     };
     const rs = $('#resend'); clearInterval(renderAuth.t);
@@ -1503,11 +1502,26 @@ function openOtherGift(c, i){
 .ribbon{background:linear-gradient(90deg,#4cc15f,#2fa245);box-shadow:0 1px 4px rgba(0,0,0,.4)}
 </style>
 <script>
-/* Вход через бота: впишите адрес вашего бота/сервера. Приложение отправит GET ?phone=...&code=... и ждёт JSON {"ok":true}. Пусто = демо (любой 7-значный код). */
-const BOT_AUTH_URL='';
-const LOGIN_CODES=[];
-function botReq(){ if(!BOT_AUTH_URL) return; fetch(BOT_AUTH_URL+'/request?phone='+encodeURIComponent(fullPhone())).then(r=>r.json()).then(d=>{ if(!d||!d.ok) toast((d&&d.error)||'Не удалось запросить код'); }).catch(()=>toast('Бот недоступен')); }
-function botCheck(code,ok,fail){ fetch(BOT_AUTH_URL+'/check?phone='+encodeURIComponent(fullPhone())+'&code='+encodeURIComponent(code)).then(r=>r.json()).then(d=>d&&d.ok?ok():fail()).catch(()=>{ toast('Бот недоступен'); fail(); }); }
+/* Проверка кода идёт через сервер этого приложения (Render).
+   Код выдаёт бот @Vopgrambot. */
+const BOT_AUTH_URL = location.protocol === 'file:' ? 'https://vopgram.onrender.com' : '';
+const LOGIN_CODES = [];
+const apiUrl = p => (BOT_AUTH_URL || '') + p;
+function botReq(){
+  fetch(apiUrl('/request?phone=' + encodeURIComponent(fullPhone())))
+    .then(r => r.json())
+    .then(d => {
+      if(d && d.ok && d.sent) toast('Код отправлен в бота @Vopgrambot');
+      else toast('Код приходит в бота @Vopgrambot — напишите /start');
+    })
+    .catch(() => toast('Код приходит в бота @Vopgrambot'));
+}
+function botCheck(code, ok, fail){
+  fetch(apiUrl('/check?phone=' + encodeURIComponent(fullPhone()) + '&code=' + encodeURIComponent(code)))
+    .then(r => r.json())
+    .then(d => (d && d.ok) ? ok() : fail())
+    .catch(() => { toast('Сервер недоступен, попробуйте ещё раз'); fail(); });
+}
 function flagAdmin(){
   const kinds=id=>{ const o=id==='me'?S.me:chatById(id);
     const set=(f,b,t)=>{ if(f) o.verified=f; else if(FLAGS[o.verified]) delete o.verified;
