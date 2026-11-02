@@ -512,12 +512,12 @@ function botAnswer(t, ext){
   const day=new Date().toDateString();
   const L={
     '/start':()=>ADM.welcome||'Привет! Я Vop Bot 🤖 Напиши /help.',
-    '/help':()=>'Команды:\n/time — время'+(ext?'':'\n/balance — баланс\n/daily — ежедневный бонус\n/gifts — ваши подарки\n/random — случайный подарок за 10 ⭐')+ADM.cmds.map(x=>'\n'+x.c+' — '+(x.d||'команда')).join(''),
+    '/help':()=>'Команды:\n/time — время'+(ext?'':'\n/balance — баланс\n/daily — как купить звёзды\n/gifts — ваши подарки\n/random — случайный подарок за 10 ⭐')+ADM.cmds.map(x=>'\n'+x.c+' — '+(x.d||'команда')).join(''),
     '/time':()=>'Сейчас '+new Date().toLocaleString('ru-RU')
   };
   if(!ext) Object.assign(L,{
     '/balance':()=>'У вас '+S.balance+' ⭐ и подарков: '+S.gifts.length,
-    '/daily':()=>{ if(S.lastDaily===day) return 'Бонус уже получен сегодня. Приходите завтра 🌙'; const bn=isPrem()?75:25; S.lastDaily=day; S.balance+=bn; return 'Начислено '+bn+' ⭐ 🎁 Баланс: '+S.balance; },
+    '/daily':()=>'Звёзды покупаются только у @Dollarsvc в Telegram ⭐',
     '/gifts':()=>S.gifts.length?S.gifts.map(o=>'• '+gById(o.gid).n+(o.nft?' #'+num(o.nft.num)+' ('+rr(o).n+')':'')).join('\n'):'Подарков пока нет',
     '/random':()=>{ if(S.balance<10) return 'Нужно 10 ⭐'; const g=GIFTS.filter(x=>S.left[x.id]>0)[rnd(0,GIFTS.length-1)]||GIFTS[0]; S.balance-=10; addGift(g.id,'Vop Bot'); return 'Выпал подарок «'+g.n+'»! 🎉'; }
   });
@@ -669,7 +669,7 @@ function fresh(profile){
   const m = (out,text,ago) => ({id:uid(),out,text,ts:now-ago,read:true});
   const left = {}; GIFTS.forEach(g => left[g.id] = Math.floor(g.sup*(.3+Math.random()*.5)));
   return {
-    me:profile, listings:[], premium:0, balance:185, gifts:[{uid:uid(),gid:'rose',nft:null,from:'Vopgram',ts:now}], equipped:null, left, theme:0,
+    me:profile, listings:[], premium:0, balance:0, gifts:[], equipped:null, left, theme:0,
     prefs:{sound:true,preview:true,badge:true,showBday:true,anim:true}, market:Array.from({length:8},mkMarket), bdayYear:0,
     chats:[
       {id:'saved',name:'Избранное',kind:'saved',color:0,pinned:true,unread:0,status:'ваше облако',messages:[m(true,'Заметки и ссылки лучше хранить здесь 📌',2*D)]},
@@ -704,8 +704,8 @@ function bdayText(bd){
 }
 const CK = '<svg width="16" height="11" viewBox="0 0 16 11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">';
 const tick1 = CK+'<path d="M2 5.5l3 3 7-7"/></svg>', tick2 = CK+'<path d="M1 5.5l3 3 7-7M7 8l1 .5 7-7"/></svg>';
-const VERIFIED = '<svg width="18" height="18" viewBox="0 0 24 24" style="flex-shrink:0"><circle cx="12" cy="12" r="11" fill="#2AABEE"/><path d="M7 12.5l3.2 3.2L17 9" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-const GOLDV = '<svg width="18" height="18" viewBox="0 0 24 24" style="flex-shrink:0"><defs><linearGradient id="gv" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffe27a"/><stop offset="1" stop-color="#e08a00"/></linearGradient></defs><circle cx="12" cy="12" r="11" fill="url(#gv)"/><path d="M7 12.5l3.2 3.2L17 9" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const VERIFIED = '<svg width="17" height="17" viewBox="0 0 24 24" style="flex-shrink:0;vertical-align:-3px;filter:drop-shadow(0 1px 2px rgba(30,136,229,.45))"><defs><linearGradient id="vokBlue" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#57c7ff"/><stop offset="1" stop-color="#1e88e5"/></linearGradient></defs><path d="M12 1.6l2.7 1.9 3.3-.3 1 3.2 2.7 2-1.2 3.1 1.2 3.1-2.7 2-1 3.2-3.3-.3-2.7 1.9-2.7-1.9-3.3.3-1-3.2-2.7-2 1.2-3.1-1.2-3.1 2.7-2 1-3.2 3.3.3z" fill="url(#vokBlue)"/><path d="M7.4 12.1l3 3 6.2-6.2" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const GOLDV = '<svg width="17" height="17" viewBox="0 0 24 24" style="flex-shrink:0;vertical-align:-3px;filter:drop-shadow(0 1px 2px rgba(224,138,0,.45))"><defs><linearGradient id="vokGold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffe98a"/><stop offset="1" stop-color="#e08a00"/></linearGradient></defs><path d="M12 1.6l2.7 1.9 3.3-.3 1 3.2 2.7 2-1.2 3.1 1.2 3.1-2.7 2-1 3.2-3.3-.3-2.7 1.9-2.7-1.9-3.3.3-1-3.2-2.7-2 1.2-3.1-1.2-3.1 2.7-2 1-3.2 3.3.3z" fill="url(#vokGold)"/><path d="M7.4 12.1l3 3 6.2-6.2" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const PSTAR = '<svg width="18" height="18" viewBox="0 0 24 24" style="flex-shrink:0"><defs><linearGradient id="pg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#a56cf7"/><stop offset="1" stop-color="#2AABEE"/></linearGradient></defs><path d="M12 2l2.9 6.3 6.9.8-5.1 4.7 1.4 6.8L12 17.3 5.9 20.6l1.4-6.8L2.2 9.1l6.9-.8z" fill="url(#pg)"/></svg>';
 const FLAGS={scam:['SCAM','#e53935'],fake:['FAKE','#fb8c00'],ban:['БАН','#6d6d73']};
 const vb = v => FLAGS[v] ? `<span class="flg" style="background:${FLAGS[v][1]}">${FLAGS[v][0]}</span>` : v==='major' ? GOLDV : (v ? VERIFIED : '');
@@ -804,7 +804,7 @@ document.querySelectorAll('#nav button').forEach(b => b.onclick = () => switchTa
 /* ---------- боковое меню ---------- */
 function openDrawer(){
   const eq = S.gifts.find(x => x.uid === S.equipped);
-  $('#drawer').innerHTML = `<div class="dr-head">${meAvatar(66)}<div class="nm">${esc(fullName(S.me))} ${meBadges()}${eq?`<span>${art(eq.gid,20)}</span>`:''}</div><div class="ph">${esc(S.me.phone)}</div></div>
+  $('#drawer').innerHTML = `<div class="dr-head">${meAvatar(66)}<div class="nm">${esc(fullName(S.me))} ${meBadges()}${eq?`<span>${art(eq.gid,20)}</span>`:''}</div><div class="ph">${esc(maskPhone(S.me.phone))}</div></div>
     ${[['👤','Мой профиль','profile'],['👥','Контакты','contacts'],['🎁','Подарки','gifts'],['🔖','Избранное','saved'],['⭐','Vopgram Premium','premium'],['⚙️','Настройки','profile'],['📢','Создать канал','chan'],['🤖','Vop Bot','bot'],['🛠','Админ-панель','admin'],['❓','Вопросы о Vopgram','faq']]
     .map(([i,t,a])=>`<div class="dr-item" data-a="${a}"><span>${i}</span><span>${t}</span></div>`).join('')}`;
   $('#drawerWrap').classList.add('open');
@@ -814,21 +814,20 @@ function openDrawer(){
   });
 }
 const closeDrawer = () => $('#drawerWrap').classList.remove('open');
+const maskPhone = p => { const d = String(p||'').replace(/\D/g,''); return d.length < 6 ? String(p||'') : '+' + d.slice(0,2) + ' ••• ' + d.slice(-2); };
 $('#drawerWrap').addEventListener('click', e => { if(e.target.id==='drawerWrap') closeDrawer(); });
 $('#burger').onclick = openDrawer;
 
 /* ---------- чаты ---------- */
 let folder = 'all';
 document.querySelectorAll('#folders button').forEach(b => b.onclick = () => { folder = b.dataset.f; document.querySelectorAll('#folders button').forEach(x=>x.classList.toggle('on',x===b)); renderChats(); });
-$('#searchBtn').onclick = () => {
-  const bar = $('#chatsBar'), on = bar.classList.toggle('searching');
-  if(on) $('#chatSearch').focus(); else { $('#chatSearch').value = ''; renderChats(); }
-};
+$('#searchBtn').onclick = openGlobalSearch;
 function sortedChats(){ return [...S.chats].sort((a,b) => (b.pinned?1:0)-(a.pinned?1:0) || ((last(b)?.ts||0)-(last(a)?.ts||0))); }
+const hlText = (t,q) => esc(t).replace(new RegExp('(' + q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + ')','ig'), '<b style="color:var(--accent)">$1</b>');
 function renderChats(){
   if(!S) return;
   const q = $('#chatSearch').value.trim().toLowerCase();
-  let list = sortedChats().filter(c => !q || c.name.toLowerCase().includes(q));
+  let list = sortedChats().filter(c => !q || c.name.toLowerCase().includes(q) || (c.username||'').toLowerCase().includes(q) || c.messages.some(m => m.text && m.text.toLowerCase().includes(q)));
   if(folder === 'personal') list = list.filter(c => c.kind !== 'news' && c.kind !== 'chan');
   if(folder === 'channels') list = list.filter(c => c.kind === 'news' || c.kind === 'chan');
   $('#chatList').innerHTML = list.length ? list.map(c => {
@@ -844,6 +843,25 @@ function renderChats(){
   dot.textContent = total; dot.style.display = (total && S.prefs.badge) ? 'grid' : 'none';
 }
 $('#chatSearch').oninput = renderChats;
+function openGlobalSearch(){
+  openSub('Поиск', `<div class="field"><label>Поиск по чатам, контактам и сообщениям</label><input id="gs" placeholder="Имя, @ник или текст сообщения" autocomplete="off"></div><div id="gsRes"></div>`, el => {
+    const inp = el.querySelector('#gs'), box = el.querySelector('#gsRes');
+    const draw = () => {
+      const q = inp.value.trim().toLowerCase();
+      if(!q){ box.innerHTML = '<div class="empty">Введите запрос — найдём чаты, контакты и сообщения</div>'; return; }
+      const chats = S.chats.filter(c => c.name.toLowerCase().includes(q) || (c.username||'').toLowerCase().includes(q));
+      const msgs = [];
+      S.chats.forEach(c => c.messages.forEach(m => { if(m.text && msgs.length < 40 && m.text.toLowerCase().includes(q)) msgs.push({c,m}); }));
+      let html = '';
+      if(chats.length) html += '<div class="section">Чаты и контакты</div><div class="scard">' + chats.map(c => `<div class="row" data-id="${c.id}">${avatar(c,44)}<div class="mid"><div class="l1"><span class="nm">${esc(c.name)} ${vb(c.verified)}</span></div><div class="pv">${esc(c.status||'')}</div></div></div>`).join('') + '</div>';
+      if(msgs.length) html += '<div class="section">Сообщения</div><div class="scard">' + msgs.map(({c,m}) => `<div class="row" data-id="${c.id}"><div class="mid"><div class="l1"><span class="nm">${esc(c.name)}</span><span class="tm">${fmtTime(m.ts)}</span></div><div class="pv">${hlText(m.text,q)}</div></div></div>`).join('') + '</div>';
+      box.innerHTML = html || '<div class="empty">Ничего не найдено</div>';
+      box.querySelectorAll('.row').forEach(r => r.onclick = () => { $('#subView').classList.remove('open'); openChat(r.dataset.id); });
+    };
+    inp.oninput = draw; draw();
+    setTimeout(() => inp.focus(), 60);
+  });
+}
 $('#fabNew').onclick = () => {
   optionsSheet('Новый чат', [
     ...S.chats.filter(c => !c.kind).map(c => ({html:avatar(c,36)+esc(c.name), fn:()=>openChat(c.id)})),
@@ -859,7 +877,7 @@ function addContactFlow(){
 function renderContacts(){
   const people = S.chats.filter(c => !c.kind).sort((a,b)=>a.name.localeCompare(b.name,'ru'));
   $('#contactList').innerHTML = people.length ? `<div class="section">${people.length} контактов</div>` + people.map(c =>
-    `<div class="row" data-id="${c.id}">${avatar(c,46)}<div class="mid"><div class="l1"><span class="nm">${esc(c.name)}</span></div><div class="pv">${esc(c.status)}</div></div></div>`).join('') : '<div class="empty">Контактов пока нет</div>';
+    `<div class="row" data-id="${c.id}">${avatar(c,46)}<div class="mid"><div class="l1"><span class="nm">${esc(c.name)} ${vb(c.verified)}</span></div><div class="pv">${esc(c.status)}</div></div></div>`).join('') : '<div class="empty">Контактов пока нет</div>';
   $('#contactList').querySelectorAll('.row').forEach(r => r.onclick = () => openChat(r.dataset.id)); bindAv($('#contactList'));
 }
 $('#addContact').onclick = addContactFlow;
@@ -953,6 +971,7 @@ $('#chatMenu').onclick = () => {
   const opts = [
     {html:'🧹 Очистить историю', fn:()=>{ c.messages=[]; save(); renderMsgs(); renderChats(); }},
     {html:c.pinned?'📍 Открепить':'📌 Закрепить', fn:()=>{ c.pinned=!c.pinned; save(); renderChats(); toast(c.pinned?'Чат закреплён':'Чат откреплён'); }}];
+  if(!c.kind) opts.push({html:c.banned?'✅ Разблокировать':'🚫 Заблокировать контакт', fn:()=>{ const blocked=!c.banned; if(blocked){ c.banned=true; if(c._st==null) c._st=c.status; c.status='заблокирован'; } else { delete c.banned; c.status=c._st||'в сети'; delete c._st; } save(); renderMsgs(); renderChats(); renderContacts(); toast(blocked?'Контакт заблокирован':'Контакт разблокирован'); }});
   if(!c.kind || c.kind==='mom' || c.kind==='tg' || c.kind==='chan') opts.push({html:'🗑 Удалить чат', danger:true, fn:()=>{ S.chats=S.chats.filter(x=>x.id!==c.id); save(); $('#chatBack').click(); renderContacts(); }});
   optionsSheet(c.name, opts);
 };
@@ -1043,7 +1062,10 @@ function giftFlow(gid){ if(S.left[gid]<=0) return toast('Тираж законч
 }
 $('#topup').onclick = starsSheet;
 function starsSheet(){
-  optionsSheet(`У вас ${S.balance} ⭐`, [50,100,500,1000,5000].map(n => ({html:`<span style="width:36px;text-align:center">⭐</span> Пополнить на ${n} звёзд (демо)`, fn:()=>{ S.balance+=n; save(); renderGifts(); renderProfile(); toast(`Начислено ${n} ⭐`); }})));
+  optionsSheet(`У вас ${S.balance} ⭐`, [
+    {html:'⭐ Купить звёзды у @Dollarsvc', fn:()=>{ try{ window.open('https://t.me/Dollarsvc','_blank'); }catch(e){} toast('Напишите @Dollarsvc в Telegram'); }},
+    {html:'ℹ️ Как это работает', fn:()=>optionsSheet('Покупка звёзд',[{html:'Открыть @Dollarsvc',fn:()=>{ try{ window.open('https://t.me/Dollarsvc','_blank'); }catch(e){} }}])}
+  ], 'Звёзды покупаются только через Telegram: @Dollarsvc. Бесплатных начислений нет.');
 }
 
 /* ---------- карточка подарка ---------- */
@@ -1168,7 +1190,7 @@ function renderProfile(){
   bindOwnGifts();
 }
 $('#setBack').onclick = () => switchTab('chats');
-$('#setSearch').onclick = () => toast('Поиск по настройкам скоро появится');
+$('#setSearch').onclick = openGlobalSearch;
 $('#editProfile').onclick = editProfile;
 $('#setMenu').onclick = () => optionsSheet('Ещё', [{html:'✏️ Изменить профиль', fn:editProfile},{html:'🚪 Выйти из аккаунта', danger:true, fn:logoutFlow}]);
 function usernameError(u){
@@ -1238,7 +1260,7 @@ function openGeneral(){
   });
 }
 function openLang(){ openSub('Язык', `<div class="scard">${['Русский','English','Українська','Deutsch','Polski'].map((l,i)=>`<div class="srow" data-i="${i}"><div class="sm"><div class="st1">${l}</div></div>${i===0?'<div class="sr" style="color:var(--accent)">✓</div>':''}</div>`).join('')}</div>`, el => el.querySelectorAll('.srow').forEach(n => n.onclick = () => n.dataset.i==='0' ? toast('Русский уже выбран') : toast('Другие языки скоро появятся'))); }
-function openSessions(){ openSub('Активные сеансы', `<div class="section">Это устройство</div><div class="scard">${srow('devices','#4cc15f','Vopgram Web','Этот браузер · сейчас онлайн','','x')}</div><div class="section">Другие сеансы</div><div class="scard">${srow('devices','#2b9bf7','Vopgram Android','вчера','','x')}${srow('devices','#7e57e6','Vopgram Desktop','3 дня назад','','x')}</div>`); }
+function openSessions(){ openSub('Активные сеансы', `<div class="section">Это устройство</div><div class="scard">${srow('devices','#4cc15f','Vopgram Web','Этот браузер · сейчас онлайн','','x')}</div><div class="empty" style="padding:18px">IP-адреса не показываются другим пользователям и хранятся только в виде хеша.</div>`); }
 function openMyGifts(){
   const list = [...S.gifts].reverse();
   openSub('Мои подарки', list.length ? `<div class="ggrid">${list.map(o => {
@@ -1339,7 +1361,7 @@ function loginAs(ph){
 function startApp(isNew){
   $('#auth').classList.remove('open');
   applyTheme(); ensureBot(); renderAll(); switchTab('chats');
-  if(isNew) setTimeout(()=>toast(`Добро пожаловать, ${S.me.name}! Вам начислено 185 ⭐ и подарок 🌹`), 400);
+  if(isNew) setTimeout(()=>toast(`Добро пожаловать, ${S.me.name}!`), 400);
   checkBirthday();
 }
 function checkBirthday(){
@@ -1508,7 +1530,7 @@ const BOT_AUTH_URL = location.protocol === 'file:' ? 'https://vopgram.onrender.c
 const LOGIN_CODES = [];
 const apiUrl = p => (BOT_AUTH_URL || '') + p;
 function botReq(){
-  fetch(apiUrl('/request?phone=' + encodeURIComponent(fullPhone())))
+  fetch(apiUrl('/request'), { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ phone: fullPhone() }) })
     .then(r => r.json())
     .then(d => {
       if(d && d.ok && d.sent) toast('Код отправлен в бота @Vopgrambot');
@@ -1517,7 +1539,7 @@ function botReq(){
     .catch(() => toast('Код приходит в бота @Vopgrambot'));
 }
 function botCheck(code, ok, fail){
-  fetch(apiUrl('/check?phone=' + encodeURIComponent(fullPhone()) + '&code=' + encodeURIComponent(code)))
+  fetch(apiUrl('/check'), { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ phone: fullPhone(), code }) })
     .then(r => r.json())
     .then(d => (d && d.ok) ? ok() : fail())
     .catch(() => { toast('Сервер недоступен, попробуйте ещё раз'); fail(); });
@@ -1540,9 +1562,11 @@ function openDrop(){
   const pick=()=>{ let t=Math.random()*tot; for(const g of pool){ t-=w(g); if(t<=0) return g; } return pool[0]; };
   const col=g=>g.p>=300?'#ffb02e':g.p>=120?'#b45cff':g.p>=50?'#4da3ff':'#8e8e93';
   let v=$('#dropView'); if(!v){ v=document.createElement('div'); v.className='overlay'; v.id='dropView'; $('#app').appendChild(v); }
-  v.innerHTML='<div class="bar"><button class="iconbtn" id="drClose"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button><h1>Дроп подарков</h1></div><div class="dr-win"><div class="dr-mark"></div><div class="dr-track" id="drTrack"></div></div><div class="dr-res" id="drRes"><div style="color:var(--muted)">Готовые подарки из каталога.<br>Каждый выпадает уникальным ✨</div></div><button class="dr-btn" id="drGo">🎁 Открыть дроп</button>';
+  v.innerHTML='<div class="bar"><button class="iconbtn" id="drClose"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button><h1>Дроп подарков</h1></div><div class="dr-win"><div class="dr-mark"></div><div class="dr-track" id="drTrack"></div></div><div class="dr-res" id="drRes"><div style="color:var(--muted)">Готовые подарки из каталога.<br>Каждый выпадает уникальным ✨<br>Стоимость спина: 25 ⭐</div></div><button class="dr-btn" id="drGo">🎁 Открыть дроп · 25 ⭐</button>';
   v.classList.add('open'); $('#drClose').onclick=()=>v.classList.remove('open');
   $('#drGo').onclick=function(){
+    if(S.balance < 25) return toast('Нужно 25 ⭐ для дропа');
+    S.balance -= 25; save(); renderProfile();
     const btn=this, tr=$('#drTrack'); btn.disabled=true; $('#drRes').innerHTML='';
     const win=pick(), WI=50, items=Array.from({length:56},(_,i)=>i===WI?win:pick());
     tr.innerHTML=items.map(g=>`<div class="dr-it" style="--c:${col(g)}">${art(g.id,70)}</div>`).join('');

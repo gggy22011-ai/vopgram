@@ -46,15 +46,146 @@ function isValidCode(phone, code) {
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: '*' } });
+server.headersTimeout = 20000;
+server.requestTimeout = 30000;
+server.keepAliveTimeout = 5000;
+server.maxConnections = 1000;
+const io = new Server(server, {
+  cors: { origin: '*' },
+  maxHttpBufferSize: 64 * 1024,
+  pingTimeout: 20000,
+  pingInterval: 25000,
+});
 
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.disable('x-powered-by');
+app.set('trust proxy', 1);
+
+app.use(cors({ origin: true, methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'] }));
+app.use(express.json({ limit: '256kb' }));
+app.use(express.urlencoded({ extended: true, limit: '64kb' }));
+
+/* ---------- security headers ---------- */
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()');
+  res.setHeader('Cross-Origin-Resource-Policy', 'same-site');
+  res.setHeader('Content-Security-Policy', [
+    "default-src 'self' data: blob: 'unsafe-inline' 'unsafe-eval' https: wss:",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https:",
+    "style-src 'self' 'unsafe-inline' https:",
+    "img-src 'self' data: blob: https:",
+    "media-src 'self' data: blob: https:",
+    "connect-src 'self' https: wss:",
+    "font-src 'self' data: https:",
+    "frame-ancestors 'self'",
+    "base-uri 'self'",
+  ].join('; '));
+  next();
+});
+
+/* ---------- anti-flood / rate limiting ---------- */
+const clientIp = req => req.ip || (req.socket && req.socket.remoteAddress) || 'unknown';
+function hashIp(ip) {
+  return crypto.createHash('sha256')
+    .update(String(ip || '') + '|' + (process.env.IP_SECRET || ADMIN_SECRET))
+    .digest('hex').slice(0, 16);
+}
+
+const limitBuckets = new Map();
+const globalBans = new Map();  // ip -> until (flood)
+const scopedBans = new Map();  // name|ip -> until (brute-force)
+
+function cleanLimits() {
+  const now = Date.now();
+  for (const [k, v] of limitBuckets) if (v.reset <= now) limitBuckets.delete(k);
+  for (const [k, v] of globalBans) if (v <= now) globalBans.delete(k);
+  for (const [k, v] of scopedBans) if (v <= now) scopedBans.delete(k);
+}
+setInterval(cleanLimits, 60000).unref();
+
+function banLeft(ip, name) {
+  const now = Date.now();
+  const g = globalBans.get(ip);
+  if (g && g > now) return g - now;
+  const s = scopedBans.get(name + '|' + ip);
+  if (s && s > now) return s - now;
+  return 0;
+}
+
+function rateLimit({ name = 'global', windowMs = 60000, max = 120, banMs = 0, globalBan = false, skip = null } = {}) {
+  return (req, res, next) => {
+    if (skip && skip(req)) return next();
+    const ip = clientIp(req);
+    const now = Date.now();
+    const left = banLeft(ip, name);
+    if (left > 0) {
+      res.setHeader('Retry-After', String(Math.ceil(left / 1000)));
+      return res.status(429).json({ error: 'too many requests, try later' });
+    }
+    const key = name + '|' + ip;
+    let b = limitBuckets.get(key);
+    if (!b || b.reset <= now) {
+      b = { count: 0, reset: now + windowMs };
+      limitBuckets.set(key, b);
+    }
+    b.count += 1;
+    res.setHeader('X-RateLimit-Limit', String(max));
+    res.setHeader('X-RateLimit-Remaining', String(Math.max(0, max - b.count)));
+    if (b.count > max) {
+      if (banMs) {
+        if (globalBan) globalBans.set(ip, now + banMs);
+        else scopedBans.set(key, now + banMs);
+      }
+      res.setHeader('Retry-After', String(Math.ceil((banMs || windowMs) / 1000)));
+      return res.status(429).json({ error: 'too many requests, try later' });
+    }
+    next();
+  };
+}
+
+/* ---------- concurrent request cap (DDoS backstop) ---------- */
+let inflight = 0;
+const MAX_INFLIGHT = 400;
+app.use((req, res, next) => {
+  if (inflight >= MAX_INFLIGHT) {
+    res.setHeader('Retry-After', '2');
+    return res.status(503).json({ error: 'server busy, try again' });
+  }
+  inflight++;
+  let done = false;
+  const release = () => { if (!done) { done = true; inflight--; } };
+  res.on('finish', release);
+  res.on('close', release);
+  next();
+});
+
+/* ---------- block scanner / probe paths ---------- */
+const BAD_PATH = /(?:^\/\.(?:env|git|svn|aws|ssh)|\.(?:php|asp|aspx|jsp|cgi)$|\/(?:wp-admin|wp-login|wp-content|phpmyadmin|xmlrpc|vendor\/phpunit|actuator|cgi-bin)(?:\/|$))/i;
+app.use((req, res, next) => {
+  if (BAD_PATH.test(req.path)) return res.status(404).end();
+  next();
+});
+
+// whole-app flood protection (health checks are exempt)
+app.use(rateLimit({ name: 'all', windowMs: 60000, max: 900, banMs: 2 * 60000, globalBan: true, skip: req => req.path === '/health' }));
+// strict limits for login / code endpoints (anti brute-force, scoped to these paths)
+const strictPaths = ['/api/auth/verify', '/api/auth/confirm-device', '/api/auth/reject-device', '/check', '/request', '/api/admin/login', '/api/admin/issue-number', '/api/admin/send-code'];
+app.use(strictPaths, rateLimit({ name: 'strict', windowMs: 60000, max: 20, banMs: 3 * 60000 }));
 
 const uploadDir = path.join(__dirname, 'public', 'uploads');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-const upload = multer({ dest: uploadDir });
+const upload = multer({
+  dest: uploadDir,
+  limits: { fileSize: 5 * 1024 * 1024, files: 1 },
+  fileFilter: (req, file, cb) => {
+    if (!/^image\/(png|jpe?g|webp|gif)$/i.test(file.mimetype || '')) {
+      return cb(new Error('only images allowed'));
+    }
+    cb(null, true);
+  },
+});
 app.use('/uploads', express.static(uploadDir));
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -119,7 +250,7 @@ app.post('/api/auth/verify', (req, res) => {
     isNew = true;
   }
   const existing = db.prepare('SELECT COUNT(*) as c FROM sessions WHERE user_id = ?').get(user.id).c;
-  const ip = req.ip || '';
+  const ip = hashIp(req.ip || '');
   const dev = deviceInfo || req.headers['user-agent'] || '';
 
   if (existing > 0) {
@@ -355,7 +486,10 @@ function adminMiddleware(req, res, next) {
 
 app.post('/api/admin/login', (req, res) => {
   const { password } = req.body || {};
-  if (password !== ADMIN_PASSWORD) return res.status(401).json({ error: 'wrong password' });
+  const given = Buffer.from(String(password || ''));
+  const expected = Buffer.from(String(ADMIN_PASSWORD));
+  const ok = given.length === expected.length && crypto.timingSafeEqual(given, expected);
+  if (!ok) return res.status(401).json({ error: 'wrong password' });
   const t = jwt.sign({ admin: true }, ADMIN_SECRET, { expiresIn: '7d' });
   res.json({ token: t });
 });
@@ -718,9 +852,11 @@ io.on('connection', (socket) => {
 
 app.get('/health', (req, res) => res.json({ status: 'ok', uptime: process.uptime() }));
 
-// Bot auth endpoints (for HTML auth flow)
-app.get('/request', async (req, res) => {
-  const phone = (req.query.phone || '').trim();
+// Bot auth endpoints (support GET for compatibility and POST so the phone/code
+// never appear in URLs, proxy logs or browser history)
+async function handleRequest(req, res) {
+  res.setHeader('Cache-Control', 'no-store');
+  const phone = String((req.body && req.body.phone) || req.query.phone || '').trim();
   if (!phone) return res.json({ ok: false, error: 'phone required' });
   const normalizedPhone = normPhone(phone);
   const code = derivedCode(normalizedPhone);
@@ -734,6 +870,7 @@ app.get('/request', async (req, res) => {
       const r = await fetch('https://api.telegram.org/bot' + BOT_TOKEN + '/sendMessage', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(6000),
         body: JSON.stringify({
           chat_id: found.telegram_user_id,
           text: 'Код входа в Vopgram: ' + code + '\nДействует 60 минут.',
@@ -747,11 +884,12 @@ app.get('/request', async (req, res) => {
   }
 
   return res.json({ ok: true, sent, hint: sent ? '' : 'Код приходит в боте @Vopgrambot — напишите /start' });
-});
+}
 
-app.get('/check', (req, res) => {
-  const phone = (req.query.phone || '').trim();
-  const code = String(req.query.code || '').trim();
+function handleCheck(req, res) {
+  res.setHeader('Cache-Control', 'no-store');
+  const phone = String((req.body && req.body.phone) || req.query.phone || '').trim();
+  const code = String((req.body && req.body.code) || req.query.code || '').trim();
   if (!phone || !code) return res.json({ ok: false, error: 'phone and code required' });
   const normalizedPhone = normPhone(phone);
   const now = Math.floor(Date.now() / 1000);
@@ -770,7 +908,12 @@ app.get('/check', (req, res) => {
 
   if (!valid) return res.json({ ok: false, error: 'invalid code' });
   return res.json({ ok: true });
-});
+}
+
+app.get('/request', handleRequest);
+app.post('/request', handleRequest);
+app.get('/check', handleCheck);
+app.post('/check', handleCheck);
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log('Vopgram server running on port ' + PORT);
