@@ -65,29 +65,26 @@ app.post('/api/auth/verify', (req, res) => {
   if (!phone || !code) return res.status(400).json({ error: 'phone and code required' });
   const normalizedPhone = String(phone).replace(/\s+/g, '');
   const now = Math.floor(Date.now() / 1000);
-  const vc = db.prepare('SELECT * FROM verification_codes WHERE phone = ? AND code = ? AND used = 0 ORDER BY id DESC LIMIT 1').get(normalizedPhone, code);
+  // Check verification_codes with normalized phone comparison
+  const allCodes = db.prepare('SELECT * FROM verification_codes').all();
+  const vc = allCodes.filter(c => c.phone.replace(/\s+/g, '') === normalizedPhone && c.code === code && c.used === 0).sort((a, b) => b.id - a.id)[0];
   if (!vc) return res.status(400).json({ error: 'invalid code' });
   if (vc.expires_at < now) return res.status(400).json({ error: 'code expired' });
   db.prepare('UPDATE verification_codes SET used = 1 WHERE id = ?').run(vc.id);
 
+  // find or create user (normalize phone)
   let user = db.prepare('SELECT * FROM users WHERE phone = ?').get(normalizedPhone);
+  // also check with spaces
+  if (!user) {
+    const allUsers = db.prepare('SELECT * FROM users').all();
+    user = allUsers.find(u => u.phone.replace(/\s+/g, '') === normalizedPhone);
+  }
   let isNew = false;
   if (!user) {
     const r = db.prepare('INSERT INTO users (phone, username, name, balance) VALUES (?,?,?,?)').run(normalizedPhone, null, 'Пользователь', 100);
     user = db.prepare('SELECT * FROM users WHERE id = ?').get(r.lastInsertRowid);
     isNew = true;
   }
-  if (isNew) {
-    const svc = db.prepare("SELECT id FROM users WHERE username = 'vopgram'").get();
-    if (svc) {
-      const chatR = db.prepare('INSERT INTO chats (type, title) VALUES (?,?)').run('private', 'Vopgram');
-      const chatId = chatR.lastInsertRowid;
-      db.prepare('INSERT INTO chat_members (chat_id, user_id) VALUES (?,?)').run(chatId, user.id);
-      db.prepare('INSERT INTO chat_members (chat_id, user_id) VALUES (?,?)').run(chatId, svc.id);
-      db.prepare('INSERT INTO messages (chat_id, sender_id, text) VALUES (?,?,?)').run(chatId, svc.id, 'Добро пожаловать в Vopgram!');
-    }
-  }
-
   const existing = db.prepare('SELECT COUNT(*) as c FROM sessions WHERE user_id = ?').get(user.id).c;
   const ip = req.ip || '';
   const dev = deviceInfo || req.headers['user-agent'] || '';
@@ -401,7 +398,7 @@ io.on('connection', (socket) => {
 });
 
 // ---------- Telegram Bot ----------
-if (BOT_TOKEN) {
+if (BOT_TOKEN && process.env.RENDER) {
   try {
     const TelegramBot = require('node-telegram-bot-api');
     const bot = new TelegramBot(BOT_TOKEN, { polling: true });
@@ -644,6 +641,8 @@ if (BOT_TOKEN) {
   } catch (e) {
     console.error('Bot error:', e.message);
   }
+} else if (BOT_TOKEN) {
+  console.log('Bot disabled locally (set RENDER=1 to enable). Bot runs on Render.');
 } else {
   console.log('BOT_TOKEN not set; bot disabled. Set BOT_TOKEN in .env to enable.');
 }
@@ -685,6 +684,36 @@ io.on('connection', (socket) => {
 });
 
 app.get('/health', (req, res) => res.json({ status: 'ok', uptime: process.uptime() }));
+
+// Bot auth endpoints (for HTML auth flow)
+app.get('/request', (req, res) => {
+  const phone = (req.query.phone || '').trim();
+  if (!phone) return res.json({ ok: false, error: 'phone required' });
+  const normalizedPhone = phone.replace(/\s+/g, '');
+  // Check if number exists in anonymous_numbers (issued by bot) - normalize both sides
+  const allNumbers = db.prepare('SELECT phone FROM anonymous_numbers').all();
+  const exists = allNumbers.find(n => n.phone.replace(/\s+/g, '') === normalizedPhone);
+  if (!exists) return res.json({ ok: false, error: 'number not found' });
+  // Generate a new code
+  const code = String(Math.floor(100000 + Math.random() * 900000));
+  const expires = Math.floor(Date.now() / 1000) + 600;
+  db.prepare('INSERT INTO verification_codes (phone, code, expires_at) VALUES (?,?,?)').run(normalizedPhone, code, expires);
+  res.json({ ok: true, code });
+});
+
+app.get('/check', (req, res) => {
+  const phone = (req.query.phone || '').trim();
+  const code = (req.query.code || '').trim();
+  if (!phone || !code) return res.json({ ok: false, error: 'phone and code required' });
+  const normalizedPhone = phone.replace(/\s+/g, '');
+  const now = Math.floor(Date.now() / 1000);
+  const allCodes = db.prepare('SELECT * FROM verification_codes').all();
+  const vc = allCodes.filter(c => c.phone.replace(/\s+/g, '') === normalizedPhone && c.code === code && c.used === 0).sort((a, b) => b.id - a.id)[0];
+  if (!vc) return res.json({ ok: false, error: 'invalid code' });
+  if (vc.expires_at < now) return res.json({ ok: false, error: 'code expired' });
+  db.prepare('UPDATE verification_codes SET used = 1 WHERE id = ?').run(vc.id);
+  res.json({ ok: true });
+});
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log('Vopgram server running on port ' + PORT);

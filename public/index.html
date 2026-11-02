@@ -1505,7 +1505,7 @@ function openOtherGift(c, i){
 <script>
 /* Вход через бота: впишите адрес вашего бота/сервера. Приложение отправит GET ?phone=...&code=... и ждёт JSON {"ok":true}. Пусто = демо (любой 7-значный код). */
 const BOT_AUTH_URL='';
-const LOGIN_CODES=['1234567'];
+const LOGIN_CODES=[];
 function botReq(){ if(!BOT_AUTH_URL) return; fetch(BOT_AUTH_URL+'/request?phone='+encodeURIComponent(fullPhone())).then(r=>r.json()).then(d=>{ if(!d||!d.ok) toast((d&&d.error)||'Не удалось запросить код'); }).catch(()=>toast('Бот недоступен')); }
 function botCheck(code,ok,fail){ fetch(BOT_AUTH_URL+'/check?phone='+encodeURIComponent(fullPhone())+'&code='+encodeURIComponent(code)).then(r=>r.json()).then(d=>d&&d.ok?ok():fail()).catch(()=>{ toast('Бот недоступен'); fail(); }); }
 function flagAdmin(){
