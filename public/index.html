@@ -489,7 +489,7 @@ const COUNTRIES = [
 ['🇹🇭','Таиланд','66',9,9],['🇻🇳','Вьетнам','84',9,9],['🇮🇩','Индонезия','62',9,11],['🇧🇷','Бразилия','55',10,11],['🇲🇽','Мексика','52',10,10],
 ['🇦🇷','Аргентина','54',10,10],['🇦🇺','Австралия','61',9,9],['🇿🇦','ЮАР','27',9,9],['🇳🇬','Нигерия','234',10,10],['🇲🇦','Марокко','212',9,9]
 ];
-const DEF_CC = 0;
+const DEF_CC = 5;
 const EMOJI = '😀 😁 😂 🤣 😊 😍 😘 😎 🤔 😢 😭 😡 👍 👎 👏 🙏 💪 🔥 ❤️ 💔 🎉 ✨ 🌹 🎁 🐰 🚀 💎 ⭐ 🍀 ☕ 🍕 🎵'.split(' ');
 const REPLIES = {
   default:['Привет! 😊','Окей, понял','Ха-ха, классно!','Расскажи подробнее','Да, конечно','Давай позже обсудим','Ого, серьёзно? 😮','Договорились 👍'],
@@ -1249,7 +1249,7 @@ function openMyGifts(){
 }
 
 /* ---------- вход по номеру ---------- */
-let A = {cc:0, digits:'', code:'', step:'phone', cooldown:0};
+let A = {cc:DEF_CC, digits:'', code:'', step:'phone', cooldown:0};
 const fmtDigits = d => [d.slice(0,3), d.slice(3,6), d.slice(6,8), d.slice(8,12)].filter(Boolean).join(' ');
 const ccLen = () => COUNTRIES[A.cc];
 function countrySheet(){
@@ -1267,7 +1267,7 @@ function countrySheet(){
 }
 const fullPhone = () => `+${COUNTRIES[A.cc][2]} ${fmtDigits(A.digits)}`;
 function showBanner(title, text){ const b=$('#banner'); b.innerHTML = `<div style="font-size:28px">💬</div><div><b>${esc(title)}</b><span>${esc(text)}</span></div>`; b.classList.add('show'); clearTimeout(showBanner.t); showBanner.t=setTimeout(()=>b.classList.remove('show'),9000); }
-function startAuth(){ A = {cc:0,digits:'',code:'',step:'phone',cooldown:0}; $('#auth').classList.add('open'); applyTheme(); renderAuth(); }
+function startAuth(){ A = {cc:DEF_CC,digits:'',code:'',step:'phone',cooldown:0}; $('#auth').classList.add('open'); applyTheme(); renderAuth(); }
 const LOGO = `<div class="av" style="width:112px;height:112px;font-size:60px;background:radial-gradient(circle at 30% 25%,#ffb3d9,#c77dff 45%,#5a4fcf);box-shadow:0 8px 30px rgba(122,90,255,.35)">🐰</div>`;
 function renderAuth(){
   const el = $('#auth');
