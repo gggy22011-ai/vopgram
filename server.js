@@ -17,6 +17,81 @@ const BOT_TOKEN = process.env.BOT_TOKEN || '';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '7533';
 const ADMIN_SECRET = process.env.ADMIN_TOKEN_SECRET || 'vopgram-admin-secret';
 
+/* ---------- purchases / people directory (small JSON stores) ---------- */
+const PURCHASES_FILE = path.join(__dirname, 'purchases.json');
+const PEOPLE_FILE = path.join(__dirname, 'people.json');
+const ONLINE_FILE = path.join(__dirname, 'online.json');
+
+function loadJson(file, fallback) {
+  try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch (e) { return fallback; }
+}
+function saveJson(file, obj) {
+  try { fs.writeFileSync(file, JSON.stringify(obj, null, 2)); } catch (e) { console.error('store save error:', e.message); }
+}
+
+const purchases = loadJson(PURCHASES_FILE, { major: {}, verified: {}, numbers: [] });
+purchases.major = purchases.major || {};
+purchases.verified = purchases.verified || {};
+purchases.numbers = purchases.numbers || [];
+const people = loadJson(PEOPLE_FILE, { users: [] });
+people.users = people.users || [];
+
+const online = loadJson(ONLINE_FILE, { users: {}, messages: [], seq: 0 });
+online.users = online.users && typeof online.users === 'object' ? online.users : {};
+online.messages = Array.isArray(online.messages) ? online.messages : [];
+online.seq = Number(online.seq) || 0;
+let onlineSavedAt = 0;
+function saveOnline(force) {
+  const now = Date.now();
+  if (!force && now - onlineSavedAt < 15000) return;
+  onlineSavedAt = now;
+  saveJson(ONLINE_FILE, online);
+}
+
+const SHOP_PRICE = Math.max(1, parseInt(process.env.SHOP_PRICE || '40', 10) || 40);
+
+function phoneOwner(phone) {
+  const n = normPhone(phone);
+  try {
+    const an = db.prepare('SELECT * FROM anonymous_numbers').all().find(a => normPhone(a.phone) === n);
+    if (an) return String(an.telegram_user_id);
+  } catch (e) {}
+  const pn = purchases.numbers.find(x => normPhone(x.phone) === n);
+  return pn ? String(pn.tgId) : null;
+}
+
+function purchaseStatus(phone) {
+  const owner = phoneOwner(phone);
+  return {
+    major: !!(owner && purchases.major[owner]),
+    verified: !!(owner && purchases.verified[owner]),
+  };
+}
+
+function new888(tgId) {
+  const taken = p => {
+    try { return db.prepare('SELECT * FROM anonymous_numbers').all().some(a => normPhone(a.phone) === normPhone(p)); } catch (e) { return false; }
+  };
+  let num;
+  do { num = '+888' + String(Math.floor(Math.random() * 9000000000 + 1000000000)); }
+  while (taken(num) || purchases.numbers.some(x => normPhone(x.phone) === normPhone(num)));
+  purchases.numbers.push({ phone: num, tgId: String(tgId), at: Date.now() });
+  saveJson(PURCHASES_FILE, purchases);
+  return num;
+}
+
+function publicPerson(u) {
+  const st = purchaseStatus(u.phone);
+  return {
+    phone: u.phone,
+    name: u.name || '',
+    username: u.username || '',
+    bio: u.bio || '',
+    major: !!(u.major || st.major),
+    verified: !!(u.verified || st.verified),
+  };
+}
+
 // ---------- Verification codes ----------
 // Codes are derived from the phone + a 30-minute time window, so they keep
 // working even after a server restart (important on free hosting).
@@ -545,6 +620,18 @@ app.get('/api/admin/codes', adminMiddleware, (req, res) => {
   res.json({ codes: rows });
 });
 
+app.get('/api/admin/purchases', adminMiddleware, (req, res) => {
+  const major = Object.keys(purchases.major).length;
+  const verified = Object.keys(purchases.verified).length;
+  const numbers = purchases.numbers.length;
+  const buyers = new Set([
+    ...Object.keys(purchases.major),
+    ...Object.keys(purchases.verified),
+    ...purchases.numbers.map(n => String(n.tgId)),
+  ]);
+  res.json({ major, verified, numbers888: numbers, buyers: buyers.size, revenueStars: (major + verified + numbers) * SHOP_PRICE });
+});
+
 // ---------- Socket.io ----------
 io.use((socket, next) => {
   const token = socket.handshake.auth?.token || socket.handshake.query?.token;
@@ -588,20 +675,95 @@ if (BOT_TOKEN && process.env.RENDER) {
       return { num, code };
     }
 
+    function codeFor(phone) {
+      const code = derivedCode(phone);
+      const expires = Math.floor(Date.now() / 1000) + 600;
+      db.prepare('INSERT INTO verification_codes (phone, code, expires_at) VALUES (?,?,?)').run(phone, code, expires);
+      return code;
+    }
+
+    const SHOP = {
+      num888: { title: 'Номер +888', desc: 'Анонимный номер +888 для входа в Vopgram' },
+      major: { title: 'Major статус', desc: 'Золотая галочка Major в профиле Vopgram' },
+      verify: { title: 'Галочка Vopgram', desc: 'Синяя галочка верификации в профиле Vopgram' },
+    };
+
+    function mainMenuKeyboard() {
+      return {
+        inline_keyboard: [
+          [{ text: '📱 Получить номер +39', callback_data: 'get_number' }],
+          [{ text: '🛍 Магазин · ' + SHOP_PRICE + ' ⭐', callback_data: 'shop' }],
+          [{ text: '🌐 Открыть сайт Vopgram', url: process.env.APP_URL || 'http://localhost:3000' }],
+          [{ text: '⚙️ Админ-панель', callback_data: 'admin_panel' }],
+        ],
+      };
+    }
+
+    function shopKeyboard() {
+      return {
+        inline_keyboard: [
+          [{ text: '🏴 Номер +888 · ' + SHOP_PRICE + ' ⭐', callback_data: 'buy_num888' }],
+          [{ text: '👑 Major · ' + SHOP_PRICE + ' ⭐', callback_data: 'buy_major' }],
+          [{ text: '✔️ Галочка · ' + SHOP_PRICE + ' ⭐', callback_data: 'buy_verify' }],
+          [{ text: '⬅️ Назад', callback_data: 'menu' }],
+        ],
+      };
+    }
+
+    function sendShopInvoice(chatId, kind) {
+      const item = SHOP[kind];
+      if (!item) return;
+      bot.sendInvoice(
+        chatId,
+        item.title,
+        item.desc,
+        'buy:' + kind,
+        '',
+        'XTR',
+        [{ label: item.title, amount: SHOP_PRICE }]
+      ).catch(e => bot.sendMessage(chatId, 'Не удалось выставить счёт: ' + e.message));
+    }
+
     bot.onText(/\/start/, (msg) => {
       const chatId = msg.chat.id;
       const { num, code } = issueNumber(chatId);
-      const opts = {
+      bot.sendMessage(chatId, '<b>Добро пожаловать в Vopgram!</b>\n\nНомер: <code>' + num + '</code>\nКод: <code>' + code + '</code>\n\nВведите в приложении. Код 10 минут.\n\nНикому не сообщайте код!', {
         parse_mode: 'HTML',
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: 'Получить номер', callback_data: 'get_number' }],
-            [{ text: 'Открыть сайт Vopgram', url: process.env.APP_URL || 'http://localhost:3000' }],
-            [{ text: 'Админ-панель', callback_data: 'admin_panel' }],
-          ]
-        }
-      };
-      bot.sendMessage(chatId, '<b>Добро пожаловать в Vopgram!</b>\n\nНомер: <code>' + num + '</code>\nКод: <code>' + code + '</code>\n\nВведите в приложении. Код 10 минут.\n\nНикому не сообщайте код!', opts);
+        reply_markup: mainMenuKeyboard(),
+      });
+    });
+
+    bot.onText(/\/shop/, (msg) => {
+      bot.sendMessage(msg.chat.id, '🛍 <b>Магазин Vopgram</b>\n\nЛюбой товар — ' + SHOP_PRICE + ' ⭐ (Telegram Stars).', {
+        parse_mode: 'HTML',
+        reply_markup: shopKeyboard(),
+      });
+    });
+
+    bot.on('pre_checkout_query', (q) => {
+      bot.answerPreCheckoutQuery(q.id, true).catch(() => {});
+    });
+
+    bot.on('successful_payment', (msg) => {
+      const chatId = msg.chat.id;
+      const sp = msg.successful_payment || {};
+      const kind = String(sp.invoice_payload || '').replace('buy:', '');
+      const stars = sp.total_amount || SHOP_PRICE;
+      if (kind === 'major') {
+        purchases.major[String(chatId)] = true;
+        saveJson(PURCHASES_FILE, purchases);
+        bot.sendMessage(chatId, '👑 <b>Major активирован!</b>\n\nЗолотая галочка появится в приложении Vopgram на аккаунте с вашим номером.\n\nСпасибо за покупку (' + stars + ' ⭐).', { parse_mode: 'HTML' });
+      } else if (kind === 'verify') {
+        purchases.verified[String(chatId)] = true;
+        saveJson(PURCHASES_FILE, purchases);
+        bot.sendMessage(chatId, '✔️ <b>Галочка активирована!</b>\n\nСиняя галочка появится в приложении Vopgram на аккаунте с вашим номером.\n\nСпасибо за покупку (' + stars + ' ⭐).', { parse_mode: 'HTML' });
+      } else if (kind === 'num888') {
+        const num = new888(chatId);
+        const code = codeFor(num);
+        bot.sendMessage(chatId, '🏴 <b>Ваш номер +888</b>\n\nНомер: <code>' + num + '</code>\nКод: <code>' + code + '</code>\n\nВведите его в приложении. Код 10 минут.\nСпасибо за покупку (' + stars + ' ⭐).', { parse_mode: 'HTML' });
+      } else {
+        bot.sendMessage(chatId, 'Оплата получена: ' + stars + ' ⭐. Спасибо!');
+      }
     });
 
     bot.on('callback_query', (q) => {
@@ -611,9 +773,28 @@ if (BOT_TOKEN && process.env.RENDER) {
         const { num, code } = issueNumber(chatId);
         bot.answerCallbackQuery(q.id, { text: 'Номер выдан' });
         bot.sendMessage(chatId, 'Номер: <code>' + num + '</code>\nКод: <code>' + code + '</code>', { parse_mode: 'HTML' });
+      } else if (data === 'shop') {
+        bot.answerCallbackQuery(q.id);
+        bot.sendMessage(chatId, '🛍 <b>Магазин Vopgram</b>\n\nЛюбой товар — ' + SHOP_PRICE + ' ⭐ (Telegram Stars).', {
+          parse_mode: 'HTML',
+          reply_markup: shopKeyboard(),
+        });
+      } else if (data === 'menu') {
+        bot.answerCallbackQuery(q.id);
+        const { num, code } = issueNumber(chatId);
+        bot.sendMessage(chatId, 'Ваш номер: <code>' + num + '</code>\nКод: <code>' + code + '</code>', { parse_mode: 'HTML', reply_markup: mainMenuKeyboard() });
+      } else if (data.startsWith('buy_')) {
+        bot.answerCallbackQuery(q.id);
+        sendShopInvoice(chatId, data.slice(4));
       } else if (data === 'admin_panel') {
         bot.answerCallbackQuery(q.id, { text: 'Введите /admin пароль' });
         bot.sendMessage(chatId, 'Введите: /admin ваш_пароль');
+      } else if (data === 'adm_purchases') {
+        bot.answerCallbackQuery(q.id);
+        const maj = Object.keys(purchases.major).length;
+        const ver = Object.keys(purchases.verified).length;
+        const nums = purchases.numbers.length;
+        bot.sendMessage(chatId, 'Покупки:\nMajor: ' + maj + '\nГалочка: ' + ver + '\nНомера +888: ' + nums);
       } else if (data === 'adm_stats') {
         const users = db.prepare('SELECT COUNT(*) as c FROM users').get().c;
         const chats = db.prepare('SELECT COUNT(*) as c FROM chats').get().c;
@@ -664,6 +845,7 @@ if (BOT_TOKEN && process.env.RENDER) {
         reply_markup: {
           inline_keyboard: [
             [{ text: '📊 Статистика', callback_data: 'adm_stats' }],
+            [{ text: '🛍 Покупки', callback_data: 'adm_purchases' }],
             [{ text: '📱 Выдать номер', callback_data: 'adm_issue' }],
             [{ text: '👥 Пользователи', callback_data: 'adm_users' }],
             [{ text: '💰 Пополнить баланс', callback_data: 'adm_balance' }],
@@ -817,38 +999,249 @@ if (BOT_TOKEN && process.env.RENDER) {
 // demo number seeding disabled
 db.prepare("DELETE FROM verification_codes WHERE code = '123456'").run();
 
-// ---------- Admin ----------
+/* ---------- people directory ---------- */
+app.get('/api/people/status', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.json(purchaseStatus(req.query.phone || ''));
+});
 
-function adminMiddleware(req, res, next) {
-  const h = req.headers.authorization || '';
-  const token = h.startsWith('Bearer ') ? h.slice(7) : null;
-  if (!token) return res.status(401).json({ error: 'no token' });
-  try {
-    const p = jwt.verify(token, ADMIN_SECRET);
-    if (!p.admin) throw new Error('not admin');
-    next();
-  } catch (e) {
-    return res.status(401).json({ error: 'invalid admin token' });
-  }
+function peopleToken(phone) {
+  return crypto.createHmac('sha256', CODE_SECRET).update('people|' + normPhone(phone)).digest('hex');
 }
 
-io.use((socket, next) => {
-  const token = socket.handshake.auth?.token || socket.handshake.query?.token;
-  if (!token) return next(new Error('no token'));
-  try {
-    const payload = jwt.verify(token, JWT_SECRET);
-    socket.userId = payload.userId;
-    next();
-  } catch (e) {
-    next(new Error('invalid token'));
+app.post('/api/people/upsert', rateLimit({ name: 'people', windowMs: 60000, max: 30 }), (req, res) => {
+  const body = req.body || {};
+  const phone = normPhone(body.phone || '');
+  if (!phone) return res.status(400).json({ error: 'phone required' });
+  const givenToken = String(body.token || '');
+  const expectedToken = peopleToken(phone);
+  const okToken = givenToken.length === expectedToken.length &&
+    crypto.timingSafeEqual(Buffer.from(givenToken), Buffer.from(expectedToken));
+  if (!okToken) return res.status(403).json({ error: 'phone not verified' });
+  const clean = (s, n) => String(s == null ? '' : s).trim().slice(0, n);
+  const name = clean(body.name, 64);
+  const username = clean(body.username, 32).replace(/^@/, '').replace(/[^a-zA-Z0-9_]/g, '');
+  const bio = clean(body.bio, 160);
+
+  let u = people.users.find(x => normPhone(x.phone) === phone);
+  if (!u) {
+    u = { phone, name: '', username: '', bio: '', created: Date.now() };
+    people.users.push(u);
   }
+  if (name) u.name = name;
+  if (username) u.username = username;
+  u.bio = bio;
+  u.updated = Date.now();
+  saveJson(PEOPLE_FILE, people);
+
+  // keep the classic users table in sync as well
+  try {
+    const existing = db.prepare('SELECT id FROM users WHERE phone = ?').get(phone);
+    if (!existing) {
+      db.prepare('INSERT INTO users (phone, username, name, bio) VALUES (?,?,?,?)').run(phone, username || ('user' + phone.slice(-4)), name || 'Пользователь', bio);
+    }
+  } catch (e) {}
+
+  res.json({ ok: true, profile: publicPerson(u) });
 });
 
-io.on('connection', (socket) => {
-  const chats = db.prepare('SELECT chat_id FROM chat_members WHERE user_id = ?').all(socket.userId);
-  for (const c of chats) socket.join('chat:' + c.chat_id);
-  socket.on('join', (chatId) => socket.join('chat:' + chatId));
+app.get('/api/people/search', rateLimit({ name: 'search', windowMs: 60000, max: 40 }), (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  const q = String(req.query.q || '').trim().toLowerCase();
+  const me = normPhone(req.query.me || '');
+  if (q.length < 2) return res.json({ people: [] });
+  const digits = q.replace(/\D/g, '');
+
+  const match = u => {
+    const name = String(u.name || '').toLowerCase();
+    const un = String(u.username || '').toLowerCase();
+    return name.includes(q) || un.includes(q) || (digits.length >= 3 && normPhone(u.phone).includes(digits));
+  };
+
+  const list = [];
+  const seen = new Set();
+  const push = u => {
+    const key = normPhone(u.phone);
+    if (!key || key === me || seen.has(key)) return;
+    seen.add(key);
+    list.push(publicPerson(u));
+  };
+
+  people.users.filter(match).forEach(push);
+  if (list.length < 20) {
+    try {
+      const rows = db.prepare('SELECT id, phone, username, name, balance, verified, major, created_at FROM users ORDER BY id DESC').all();
+      rows.filter(match).forEach(push);
+    } catch (e) {}
+  }
+
+  res.json({ people: list.slice(0, 20) });
 });
+
+/* ---------- online messaging (real users, REST + polling) ---------- */
+const sha256 = s => crypto.createHash('sha256').update(String(s == null ? '' : s)).digest('hex');
+function safeEq(a, b) {
+  const x = Buffer.from(String(a == null ? '' : a));
+  const y = Buffer.from(String(b == null ? '' : b));
+  return x.length === y.length && crypto.timingSafeEqual(x, y);
+}
+function cleanField(v, n) { return String(v == null ? '' : v).trim().slice(0, n); }
+function onlineTokenOk(phone, token) {
+  return !!token && safeEq(token, peopleToken(phone));
+}
+function onlineAuth(phone, body) {
+  if (!phone) return false;
+  if (onlineTokenOk(phone, body && body.token)) return true;
+  const u = online.users[phone];
+  const secret = String((body && body.secret) || '');
+  return !!(u && u.secretHash && secret && safeEq(sha256(secret), u.secretHash));
+}
+function onlinePeers() {
+  return Object.values(online.users)
+    .filter(u => u && u.phone)
+    .sort((a, b) => (b.lastSeen || 0) - (a.lastSeen || 0))
+    .slice(0, 400)
+    .map(u => ({ phone: u.phone, name: u.name || '', username: u.username || '', lastSeen: u.lastSeen || 0 }));
+}
+function ensureOnlineUser(phone, name, username) {
+  let u = online.users[phone];
+  if (!u) {
+    u = online.users[phone] = {
+      phone, name: '', username: '', secretHash: '',
+      created: Date.now(), lastSeen: 0,
+    };
+  }
+  if (name) u.name = name;
+  if (username) u.username = username;
+  return u;
+}
+
+app.post('/api/online/register', rateLimit({ name: 'online-reg', windowMs: 60000, max: 40 }), (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  const body = req.body || {};
+  const phone = normPhone(body.phone || '');
+  if (!phone) return res.status(400).json({ error: 'phone required' });
+  const secret = cleanField(body.secret, 128);
+  const tokenOk = onlineTokenOk(phone, String(body.token || ''));
+  const now = Date.now();
+  let u = online.users[phone];
+
+  if (!u) {
+    if (!tokenOk && !secret) return res.status(403).json({ error: 'verification required' });
+    u = ensureOnlineUser(phone);
+  } else if (!tokenOk) {
+    if (u.secretHash) {
+      if (!secret || !safeEq(sha256(secret), u.secretHash)) return res.status(403).json({ error: 'bad secret' });
+    } else if (secret) {
+      u.secretHash = sha256(secret);
+    } else {
+      return res.status(403).json({ error: 'bad secret' });
+    }
+  }
+  if (secret && !u.secretHash) u.secretHash = sha256(secret);
+
+  const name = cleanField(body.name, 64);
+  const username = cleanField(body.username, 32).replace(/^@/, '').replace(/[^a-zA-Z0-9_]/g, '');
+  if (name) u.name = name;
+  if (username) u.username = username;
+  u.lastSeen = now;
+
+  // a verified owner also updates the public people directory
+  if (tokenOk && (name || username)) {
+    let p = people.users.find(x => normPhone(x.phone) === phone);
+    if (!p) {
+      p = { phone, name: '', username: '', bio: '', created: now };
+      people.users.push(p);
+    }
+    if (name) p.name = name;
+    if (username) p.username = username;
+    p.updated = now;
+    saveJson(PEOPLE_FILE, people);
+  }
+
+  saveOnline(true);
+  res.json({ ok: true, phone, maxSeq: online.seq, peers: onlinePeers(), serverTime: now });
+});
+
+app.post('/api/online/poll', rateLimit({ name: 'online-poll', windowMs: 60000, max: 240 }), (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  const body = req.body || {};
+  const phone = normPhone(body.phone || '');
+  if (!phone) return res.status(400).json({ error: 'phone required' });
+  if (!onlineAuth(phone, body)) return res.status(403).json({ error: 'auth required' });
+  const since = Math.max(0, parseInt(body.since, 10) || 0);
+
+  const out = [];
+  for (let i = online.messages.length - 1; i >= 0; i--) {
+    const m = online.messages[i];
+    if (m.seq <= since) break;
+    if (m.from === phone || m.to === phone) out.push(m);
+  }
+  out.reverse();
+
+  const u = online.users[phone];
+  if (u && Date.now() - (u.lastSeen || 0) > 20000) {
+    u.lastSeen = Date.now();
+    saveOnline(false);
+  }
+  res.json({ ok: true, messages: out.slice(-300), maxSeq: online.seq, peers: onlinePeers(), serverTime: Date.now() });
+});
+
+app.post('/api/online/history', rateLimit({ name: 'online-hist', windowMs: 60000, max: 20 }), (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  const body = req.body || {};
+  const phone = normPhone(body.phone || '');
+  if (!phone) return res.status(400).json({ error: 'phone required' });
+  if (!onlineAuth(phone, body)) return res.status(403).json({ error: 'auth required' });
+  const messages = online.messages.filter(m => m.from === phone || m.to === phone).slice(-200);
+  res.json({ ok: true, messages, maxSeq: online.seq, peers: onlinePeers(), serverTime: Date.now() });
+});
+
+app.post('/api/online/send', rateLimit({ name: 'online-send', windowMs: 60000, max: 60 }), (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  const body = req.body || {};
+  const phone = normPhone(body.phone || '');
+  const to = normPhone(body.to || '');
+  if (!phone) return res.status(400).json({ error: 'phone required' });
+  if (!onlineAuth(phone, body)) return res.status(403).json({ error: 'auth required' });
+  if (!to || to === phone) return res.status(400).json({ error: 'bad recipient' });
+  const text = cleanField(body.text, 4000);
+  if (!text) return res.status(400).json({ error: 'text required' });
+
+  const id = cleanField(body.id, 64).replace(/[^a-zA-Z0-9_.:-]/g, '') || uuidv4();
+  const existing = online.messages.find(m => m.id === id && m.from === phone);
+  if (existing) return res.json({ ok: true, msg: existing, maxSeq: online.seq });
+
+  const sender = online.users[phone];
+  if (!sender) return res.status(403).json({ error: 'register first' });
+  if (!online.users[to]) {
+    const person = people.users.find(x => normPhone(x.phone) === to);
+    ensureOnlineUser(to, person ? person.name : '', person ? person.username : '');
+  }
+  const now = Date.now();
+  sender.lastSeen = now;
+  const msg = { id, seq: ++online.seq, from: phone, to, text, at: now, read: false };
+  online.messages.push(msg);
+  if (online.messages.length > 10000) online.messages = online.messages.slice(-8000);
+  saveOnline(true);
+  res.json({ ok: true, msg, maxSeq: online.seq });
+});
+
+app.post('/api/online/read', rateLimit({ name: 'online-read', windowMs: 60000, max: 120 }), (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  const body = req.body || {};
+  const phone = normPhone(body.phone || '');
+  const peer = normPhone(body.peer || '');
+  if (!phone) return res.status(400).json({ error: 'phone required' });
+  if (!onlineAuth(phone, body)) return res.status(403).json({ error: 'auth required' });
+  let changed = 0;
+  online.messages.forEach(m => {
+    if (!m.read && m.to === phone && (!peer || m.from === peer)) { m.read = true; changed++; }
+  });
+  if (changed) saveOnline(true);
+  res.json({ ok: true, changed, maxSeq: online.seq });
+});
+
 
 app.get('/health', (req, res) => res.json({ status: 'ok', uptime: process.uptime() }));
 
@@ -864,15 +1257,14 @@ async function handleRequest(req, res) {
   // Deliver the code to the Telegram chat that owns this number
   let sent = false;
   try {
-    const nums = db.prepare('SELECT * FROM anonymous_numbers').all();
-    const found = nums.find(n => normPhone(n.phone) === normalizedPhone);
-    if (found && found.telegram_user_id && BOT_TOKEN) {
+    const owner = phoneOwner(normalizedPhone);
+    if (owner && BOT_TOKEN) {
       const r = await fetch('https://api.telegram.org/bot' + BOT_TOKEN + '/sendMessage', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal: AbortSignal.timeout(6000),
         body: JSON.stringify({
-          chat_id: found.telegram_user_id,
+          chat_id: owner,
           text: 'Код входа в Vopgram: ' + code + '\nДействует 60 минут.',
         }),
       });
@@ -907,7 +1299,7 @@ function handleCheck(req, res) {
   }
 
   if (!valid) return res.json({ ok: false, error: 'invalid code' });
-  return res.json({ ok: true });
+  return res.json({ ok: true, peopleToken: peopleToken(normalizedPhone) });
 }
 
 app.get('/request', handleRequest);

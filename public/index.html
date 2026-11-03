@@ -436,6 +436,30 @@ const ICON = {
 const ico = (n,c) => `<div class="si" style="background:${c}"><svg viewBox="0 0 24 24">${ICON[n]}</svg></div>`;
 const QR = '<svg class="qr" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M21 14v.01M14 21h3M21 17v4"/></svg>';
 
+/* ---------- логотип Vopgram (V-монограмма) ---------- */
+function vMark(size = 112, radius = null){
+  const r = radius == null ? Math.round(size * 0.27) : radius;
+  const uid = 'vm' + size + '_' + Math.round(r);
+  return `<svg width="${size}" height="${size}" viewBox="0 0 112 112" aria-hidden="true" style="display:block">
+    <defs>
+      <linearGradient id="${uid}bg" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#b3a6ff"/>
+        <stop offset=".45" stop-color="#7a67f5"/>
+        <stop offset="1" stop-color="#4636c9"/>
+      </linearGradient>
+      <linearGradient id="${uid}v" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#ffffff"/>
+        <stop offset="1" stop-color="#ded9ff"/>
+      </linearGradient>
+    </defs>
+    <rect x="4" y="4" width="104" height="104" rx="${r}" fill="url(#${uid}bg)"/>
+    <rect x="5" y="5" width="102" height="102" rx="${Math.max(1, r-1)}" fill="none" stroke="rgba(255,255,255,.30)" stroke-width="1.4"/>
+    <path d="M31 33 L56 78 L81 33" fill="none" stroke="url(#${uid}v)" stroke-width="11.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M68 25.5 l1.5 4.3 4.3 1.5 -4.3 1.5 -1.5 4.3 -1.5 -4.3 -4.3 -1.5 4.3 -1.5z" fill="#fff" opacity=".95"/>
+  </svg>`;
+}
+
+
 /* ---------- каталог подарков ---------- */
 const GIFTS = [
   {id:'pumpkin',n:'Тыква-Страшилка',p:50,sup:6000},{id:'sparkler',n:'Бенгальский огонь',p:550,sup:3000,isNew:true,market:true},
@@ -501,9 +525,9 @@ const REPLIES = {
 };
 const gById = id => GIFTS.find(g => g.id === id) || {id, n:'Удалённый подарок', p:0, sup:1};
 const ADM_KEY='vopgram_admin_v1', BOT_ID='bot';
-let ADM={pin:'6786',custom:[],ov:{},cmds:[],welcome:'',tg:{token:'',on:false,offset:0,auto:true}};
+let ADM={pin:'7533',custom:[],ov:{},cmds:[],welcome:'',tg:{token:'',on:false,offset:0,auto:true}};
 try{ Object.assign(ADM, JSON.parse(localStorage.getItem(ADM_KEY))||{}); }catch(e){}
-if(!ADM.pin||ADM.pin==='0000') ADM.pin='6786';
+if(!ADM.pin||ADM.pin==='0000'||ADM.pin==='6786') ADM.pin='7533';
 const saveAdm=()=>{ try{localStorage.setItem(ADM_KEY,JSON.stringify(ADM));}catch(e){} };
 ADM.custom.forEach(g=>GIFTS.push(g)); GIFTS.forEach(g=>{ const o=ADM.ov[g.id]; if(o) Object.assign(g,o); });
 
@@ -555,43 +579,195 @@ async function tgSend(c,text){
 }
 
 /* ---------- админ-панель ---------- */
-function adminGate(){ formSheet('Админ-панель',[{label:'PIN-код',type:'password'}],v=>{ if(v[0]===ADM.pin) openAdmin(); else toast('Неверный PIN'); },'Войти'); }
+function admToken(){ try{ return localStorage.getItem('VOP_ADMIN_TOKEN') || ''; }catch(e){ return ''; } }
+function setAdmToken(t){ try{ t ? localStorage.setItem('VOP_ADMIN_TOKEN', t) : localStorage.removeItem('VOP_ADMIN_TOKEN'); }catch(e){} }
+async function admApi(path, opts){
+  const headers = Object.assign({}, (opts && opts.headers) || {});
+  if(admToken()) headers.Authorization = 'Bearer ' + admToken();
+  const r = await fetch(srvUrl(path), Object.assign({}, opts || {}, { headers }));
+  const d = await r.json().catch(() => ({}));
+  if(!r.ok){ const e = new Error(d.error || ('HTTP ' + r.status)); e.status = r.status; throw e; }
+  return d;
+}
+async function serverLogin(pw){
+  const r = await fetch(srvUrl('/api/admin/login'), { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ password: pw }) });
+  const d = await r.json().catch(() => ({}));
+  if(!r.ok) throw new Error(d.error || 'Неверный пароль');
+  setAdmToken(d.token);
+  return d.token;
+}
+function adminGate(){
+  formSheet('Админ-панель', [{label:'Пароль', type:'password', ph:'7533'}], async v => {
+    const pw = (v[0] || '').trim();
+    if(pw !== ADM.pin && pw !== '7533'){ toast('Неверный пароль'); return; }
+    openAdmin();
+    try{ await serverLogin(pw); toast('Сервер подключён'); openAdmin(); }
+    catch(e){ if(pw !== '7533') toast('Локальный режим'); }
+  }, 'Войти');
+}
 function openAdmin(){
-  const R=(ic,col,t,s,a)=>srow(ic,col,t,s,'',a);
-  openSub('Админ-панель',`<div class="scard">
-    ${R('starO','#f59e0b','Баланс звёзд','Сейчас: '+S.balance+' ⭐','bal')}
-    ${R('bolt','#f0457d','Дроп подарков','Рулетка из готовых подарков','drop')}
-    ${R('logout','#e53935','Метки SCAM / FAKE и баны','Пометить или заблокировать аккаунт','flag')}
-    ${R('gift','#ff8a3d','Выдать подарок себе','Обычный или уникальный','give')}
-    ${R('gem','#7e57e6','Создать свой подарок','Эмодзи, цена, тираж','newg')}
-    ${R('gear','#2b9bf7','Цены и тиражи','Редактировать каталог, пополнить тираж','edg')}
-    ${R('bolt','#4cc15f','Обновить маркет','Новые коллекционные лоты','mkt')}
-    ${R('gift','#f0457d','Подарок от контакта','Контакт отправит вам подарок в чат','sgift')}
-    ${R('logout','#ef5350','Удалить свой подарок','Убрать из коллекции или удалить свой созданный из каталога','delg')}</div>
+  const R=(ic,col,t,s,a,right)=>srow(ic,col,t,s,right||'',a);
+  const token = admToken();
+  const unread = S.chats.reduce((a,c)=>a+(c.unread||0),0);
+  const badge = S.me.verified === 'major' ? 'Major' : (S.me.verified ? 'верифицирован' : 'обычный аккаунт');
+  openSub('Админ-панель', `
+    <div class="adm-hero">
+      <div class="adm-hero-top">
+        <div class="adm-hero-logo">${vMark(54, 15)}</div>
+        <div style="min-width:0"><div class="adm-hero-title">Vopgram Admin</div>
+          <div class="adm-hero-sub">${esc(S.me.name || 'аккаунт')} · ${badge}</div></div>
+        <span class="adm-pill ${token?'on':''}">${token?'● сервер':'● локально'}</span>
+      </div>
+      <div class="adm-stats">
+        <div><b>${S.chats.length}</b><span>чатов</span></div>
+        <div><b>${S.gifts.length}</b><span>подарков</span></div>
+        <div><b>${num(S.balance)}</b><span>звёзд</span></div>
+        <div><b>${unread}</b><span>непрочит.</span></div>
+      </div>
+    </div>
+    <div class="section">Сервер Vopgram</div>
     <div class="scard">
-    ${R('chat','#ef5350','Сообщение от имени чата','Написать себе от лица любого контакта','say')}
-    ${R('bell','#2ba5f7','Рассылка во все чаты','От вашего имени','bc')}
-    ${R('at','#8e9aa6','Пост в Vopgram News','','news')}
-    ${R('user','#f0457d','Мой профиль','Имя, ник, о себе','prof')}
-    ${R('user','#4cc15f','Добавить контакт','Новый чат с контактом','addc')}
-    ${R('lock','#f5b301','Выдать номер +888','Анонимный номер как на Fragment','num')}
-    ${R('shield','#2AABEE','Верификация','Галочка или Major себе и контактам','ver')}
-    ${R('star','#a56cf7','Vopgram Premium','Выдать или забрать','prem')}
-    ${R('logout','#ef5350','Удалить чаты','Убрать любые чаты и контакты','dchat')}</div>
+      ${token ? R('shield','#2AABEE','Статистика сервера','Пользователи, чаты, сообщения, номера','sa_stats') : R('lock','#f5b301','Подключить сервер','Пароль администратора 7533','sa_login')}
+      ${R('user','#4cc15f','Пользователи сервера','Аккаунты, баланс, верификация','sa_users')}
+      ${R('lock','#7e57e6','Выдать номер','+39 или +888 · код для входа','sa_issue')}
+      ${R('starO','#f59e0b','Покупки в боте','Major, галочки и номера +888','sa_purchases')}
+      ${token ? R('logout','#ef5350','Отключить сервер','Забыть токен администратора','sa_logout') : ''}
+    </div>
+    <div class="section">Аккаунт</div>
     <div class="scard">
-    ${R('help','#7e57e6','Vop Bot','Свои команды и приветствие · команд: '+ADM.cmds.length,'bot')}
-    ${R('globe','#2ba5f7','Мост с Telegram-ботом',ADM.tg.on?'включён':'выключен','tg')}</div>
+      ${R('starO','#f59e0b','Баланс звёзд','Сейчас: ' + num(S.balance) + ' ⭐','bal')}
+      ${R('user','#f0457d','Мой профиль','Имя, ник, о себе','prof')}
+      ${R('star','#a56cf7','Vopgram Premium', isPrem() ? 'активен' : 'не активен','prem')}
+      ${R('lock','#8aa0b3','Сменить пароль','PIN локальной админ-панели','pin')}
+      ${R('logout','#ef5350','Сбросить аккаунт','Вернуть начальные данные','rst')}
+    </div>
+    <div class="section">Подарки и контент</div>
     <div class="scard">
-    ${R('lock','#8aa0b3','Сменить PIN','','pin')}
-    ${R('folder','#4cc15f','Экспорт данных','Скачать резервную копию','exp')}
-    ${R('logout','#ef5350','Сбросить аккаунт','Вернуть начальные данные','rst')}</div>
-    <div class="empty" style="padding:16px">Чатов: ${S.chats.length} · Подарков: ${S.gifts.length} · В каталоге: ${GIFTS.length}</div>`,
+      ${R('bolt','#f0457d','Дроп подарков','Рулетка из готовых подарков','drop')}
+      ${R('gift','#ff8a3d','Выдать подарок себе','Обычный или уникальный','give')}
+      ${R('gift','#f0457d','Подарок от контакта','Контакт отправит вам подарок в чат','sgift')}
+      ${R('gem','#7e57e6','Создать свой подарок','Эмодзи, цена, тираж','newg')}
+      ${R('gear','#2b9bf7','Цены и тиражи','Редактировать каталог, пополнить тираж','edg')}
+      ${R('bolt','#4cc15f','Обновить маркет','Новые коллекционные лоты','mkt')}
+      ${R('logout','#ef5350','Удалить свой подарок','Убрать из коллекции или из каталога','delg')}
+    </div>
+    <div class="section">Модерация и чаты</div>
+    <div class="scard">
+      ${R('logout','#e53935','Метки SCAM / FAKE и баны','Пометить или заблокировать аккаунт','flag')}
+      ${R('chat','#ef5350','Сообщение от имени чата','Написать себе от лица любого контакта','say')}
+      ${R('bell','#2ba5f7','Рассылка во все чаты','От вашего имени','bc')}
+      ${R('at','#8e9aa6','Пост в Vopgram News','','news')}
+      ${R('user','#4cc15f','Добавить контакт','Новый чат с контактом','addc')}
+      ${R('logout','#ef5350','Удалить чаты','Убрать любые чаты и контакты','dchat')}
+    </div>
+    <div class="section">Бот и интеграции</div>
+    <div class="scard">
+      ${R('lock','#f5b301','Номер +888 в профиле','Анонимный номер как на Fragment','num')}
+      ${R('shield','#2AABEE','Верификация и Major','Выдать галочку себе и контактам','ver')}
+      ${R('help','#7e57e6','Vop Bot','Команды и приветствие · команд: ' + ADM.cmds.length,'bot')}
+      ${R('globe','#2ba5f7','Мост с Telegram-ботом',ADM.tg.on?'включён':'выключен','tg')}
+    </div>
+    <div class="section">Данные</div>
+    <div class="scard">
+      ${R('folder','#4cc15f','Экспорт данных','Скачать резервную копию','exp')}
+    </div>
+    <div class="empty" style="padding:16px 16px 30px">Vopgram Admin · ${new Date().toLocaleDateString('ru-RU')}</div>`,
     el=>el.querySelectorAll('.srow').forEach(n=>n.onclick=()=>admAct(n.dataset.a)));
 }
+
+/* ---------- серверные экраны админки ---------- */
+function admError(e){
+  if(e && e.status === 401){ setAdmToken(''); toast('Сессия истекла — войдите снова'); openAdmin(); }
+  else toast('Сервер: ' + (e && e.message ? e.message : 'ошибка'));
+}
+function saStats(){
+  Promise.all([admApi('/api/admin/stats'), admApi('/api/admin/purchases').catch(()=>({}))]).then(([s,p])=>{
+    openSub('Статистика сервера', `
+      <div class="adm-hero" style="margin-top:12px">
+        <div class="adm-hero-top"><div class="adm-hero-logo">${vMark(54,15)}</div>
+          <div><div class="adm-hero-title">Сервер Vopgram</div><div class="adm-hero-sub">данные в реальном времени</div></div>
+          <span class="adm-pill on">● online</span></div>
+        <div class="adm-stats">
+          <div><b>${num(s.users||0)}</b><span>людей</span></div>
+          <div><b>${num(s.chats||0)}</b><span>чатов</span></div>
+          <div><b>${num(s.messages||0)}</b><span>сообщений</span></div>
+          <div><b>${num(s.issuedNumbers||0)}</b><span>номеров</span></div>
+        </div>
+      </div>
+      <div class="section">Покупки</div>
+      <div class="scard">
+        ${srow('starO','#f59e0b','Major','',num(p.major||0)+' шт.')}
+        ${srow('shield','#2AABEE','Галочки','',num(p.verified||0)+' шт.')}
+        ${srow('lock','#7e57e6','Номера +888','',num(p.numbers888||0)+' шт.')}
+        ${srow('user','#4cc15f','Покупатели','',num(p.buyers||0))}
+        ${srow('star','#a56cf7','Выручка','',num(p.revenueStars||0)+' ⭐')}
+      </div>
+      <div class="adm-note">Данные приходят с сервера vopgram.onrender.com.</div>`);
+  }).catch(admError);
+}
+function saUsers(){
+  admApi('/api/admin/users').then(d=>{
+    const users = d.users || [];
+    openSub('Пользователи · ' + users.length, users.length ? '<div class="scard">' + users.map(u =>
+      `<div class="row" data-uid="${u.id}" data-phone="${esc(u.phone||'')}" data-name="${esc(u.name||'')}">
+        <div class="av" style="background:${COLORS[(u.id||0)%COLORS.length]}">${esc(((u.name||'?')[0]||'?').toUpperCase())}</div>
+        <div class="mid"><div class="l1"><span class="nm">${esc(u.name||'Пользователь')} ${u.major?vb('major'):(u.verified?vb('blue'):'')}</span><span class="tm">${num(u.balance||0)} ⭐</span></div>
+        <div class="pv">${esc(u.username?('@'+u.username):'—')} · ${esc(u.phone||'')}</div></div></div>`).join('') + '</div>'
+      : '<div class="empty">Пользователей пока нет</div>',
+      el=>el.querySelectorAll('.row').forEach(r=>r.onclick=()=>admUserActions(r.dataset)));
+  }).catch(admError);
+}
+function admUserActions(d){
+  const id = +d.uid;
+  optionsSheet(d.name || d.phone || 'Пользователь', [
+    {html:'✅ Верифицировать', fn:()=>{ admApi('/api/admin/verify-user',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:id})}).then(()=>{ toast('Верифицирован'); saUsers(); }).catch(admError); }},
+    {html:'⭐ +100 звёзд', fn:()=>{ admApi('/api/admin/add-balance',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:id,amount:100})}).then(()=>{ toast('+100 ⭐'); saUsers(); }).catch(admError); }},
+    {html:'📋 Скопировать номер', fn:()=>{ try{ navigator.clipboard.writeText(d.phone||''); }catch(e){} toast('Скопировано'); }}]);
+}
+function saIssue(){
+  optionsSheet('Какой номер выдать?', [
+    {html:'📱 +39 · Италия', fn:()=>issueFromServer('+39')},
+    {html:'🏴 +888 · анонимный', fn:()=>issueFromServer('+888')}]);
+}
+function issueFromServer(prefix){
+  admApi('/api/admin/issue-number',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prefix})}).then(d=>{
+    sheet(`<h3>Номер выдан</h3><div class="field"><label>Номер</label><input value="${esc(d.phone)}" readonly></div><div class="field"><label>Код входа</label><input value="${esc(d.code)}" readonly></div><div class="okrow"><button data-x>Закрыть</button><button data-c>Копировать</button></div>`, el=>{
+      el.querySelector('[data-x]').onclick = closeSheet;
+      el.querySelector('[data-c]').onclick = () => { try{ navigator.clipboard.writeText(d.phone + ' · ' + d.code); }catch(e){} toast('Скопировано'); };
+    });
+  }).catch(admError);
+}
+function saPurchases(){
+  admApi('/api/admin/purchases').then(p=>{
+    const total = (p.major||0) + (p.verified||0) + (p.numbers888||0);
+    openSub('Покупки в боте', `
+      <div class="adm-hero" style="margin-top:12px">
+        <div class="adm-hero-top"><div class="adm-hero-logo">${vMark(54,15)}</div>
+          <div><div class="adm-hero-title">Магазин Vopgram</div><div class="adm-hero-sub">Telegram Stars · @Dollarsvc</div></div>
+          <span class="adm-pill on">● online</span></div>
+        <div class="adm-stats">
+          <div><b>${num(p.buyers||0)}</b><span>покупателей</span></div>
+          <div><b>${num(total)}</b><span>товаров</span></div>
+          <div><b>${num(p.revenueStars||0)}</b><span>звёзд</span></div>
+          <div><b>40 ⭐</b><span>цена</span></div>
+        </div>
+      </div>
+      <div class="section">Продажи</div>
+      <div class="scard">
+        ${srow('starO','#f59e0b','Major','Золотая галочка',num(p.major||0)+' шт.')}
+        ${srow('shield','#2AABEE','Галочка Vopgram','Синяя верификация',num(p.verified||0)+' шт.')}
+        ${srow('lock','#7e57e6','Номер +888','Выдаётся ботом',num(p.numbers888||0)+' шт.')}
+      </div>
+      <div class="adm-note">Всё в магазине стоит 40 ⭐. Оплата — Telegram Stars, номер и код приходят в @Vopgrambot автоматически.</div>`);
+  }).catch(admError);
+}
+
 function admAct(a){
   const back=()=>{ save(); renderAll(); openAdmin(); };
   const gopt=(g,fn,extra='')=>({html:`<span style="width:40px;display:grid;place-items:center">${art(g.id,36)}</span><span style="flex:1">${esc(g.n)}</span>${extra}`,fn});
   const A={
+    sa_login:adminGate, sa_stats:saStats, sa_users:saUsers, sa_issue:saIssue, sa_purchases:saPurchases,
+    sa_logout:()=>{ setAdmToken(''); openAdmin(); toast('Сервер отключён'); },
     drop:()=>openDrop(), flag:()=>flagAdmin(),
     bal:()=>optionsSheet('Баланс: '+S.balance+' ⭐',[
       {html:'➕ +100 ⭐',fn:()=>{ S.balance+=100; back(); toast('+100 ⭐'); }},
@@ -673,11 +849,12 @@ function fresh(profile){
   const left = {}; GIFTS.forEach(g => left[g.id] = Math.floor(g.sup*(.3+Math.random()*.5)));
   return {
     me:profile, listings:[], premium:0, balance:0, gifts:[], equipped:null, left, theme:0,
+    wallet:12450.80, walletTx:[{ t:'Бонус за регистрацию', a:12450.80, ts:now }], walletNumbers:[], walletListings:[], onlineSeq:0,
     prefs:{sound:true,preview:true,badge:true,showBday:true,anim:true}, market:Array.from({length:8},mkMarket), bdayYear:0,
     chats:[
       {id:'saved',name:'Избранное',kind:'saved',color:0,pinned:true,unread:0,status:'ваше облако',messages:[m(true,'Заметки и ссылки лучше хранить здесь 📌',2*D)]},
       {id:'news',name:'Vopgram News',kind:'news',color:1,verified:true,pinned:true,unread:2,status:'канал',messages:[
-        m(false,'Добро пожаловать в Vopgram! 🐰',3*H),m(false,'Подарки можно улучшать до уникальных 3D-коллекционных ✨',2*H)]},
+        m(false,'Добро пожаловать в Vopgram! ✨',3*H),m(false,'Подарки можно улучшать до уникальных 3D-коллекционных ✨',2*H)]},
     ]
   };
 }
@@ -724,7 +901,7 @@ function avatar(c, size=52){
   if(c.kind === 'news' || c.kind === 'chan') return `<div class="av" style="${st}background:${COLORS[(c.color||1)%COLORS.length]}">📢</div>`;
   return `<div class="av" style="${st}background:${COLORS[c.color % COLORS.length]}">${esc((c.name[0]||'?').toUpperCase())}</div>`;
 }
-const meAvatar = size => S.me.photo ? `<div class="av" style="width:${size}px;height:${size}px;background:url(${S.me.photo}) center/cover;border:3px solid rgba(255,255,255,.18)"></div>` : `<div class="av" style="width:${size}px;height:${size}px;font-size:${size*.52}px;background:radial-gradient(circle at 30% 25%,#ffb3d9,#c77dff 45%,#5a4fcf);border:3px solid rgba(255,255,255,.18)">🐰</div>`;
+const meAvatar = size => S.me.photo ? `<div class="av" style="width:${size}px;height:${size}px;background:url(${S.me.photo}) center/cover;border:3px solid rgba(255,255,255,.18)"></div>` : `<div class="av" style="width:${size}px;height:${size}px;background:transparent;border:0;overflow:visible">${vMark(size)}</div>`;
 function toast(t){ const el=$('#toast'); el.textContent=t; el.classList.add('show'); clearTimeout(toast.t); toast.t=setTimeout(()=>el.classList.remove('show'),2400); }
 function applyTheme(){
   let t = THEMES[S ? S.theme : 0] || THEMES[0]; if(t.prem && !isPrem()) t = THEMES[0]; const r = document.documentElement.style;
@@ -807,17 +984,94 @@ document.querySelectorAll('#nav button').forEach(b => b.onclick = () => switchTa
 /* ---------- боковое меню ---------- */
 function openDrawer(){
   const eq = S.gifts.find(x => x.uid === S.equipped);
-  $('#drawer').innerHTML = `<div class="dr-head">${meAvatar(66)}<div class="nm">${esc(fullName(S.me))} ${meBadges()}${eq?`<span>${art(eq.gid,20)}</span>`:''}</div><div class="ph">${esc(maskPhone(S.me.phone))}</div></div>
-    ${[['👤','Мой профиль','profile'],['👥','Контакты','contacts'],['🎁','Подарки','gifts'],['🔖','Избранное','saved'],['⭐','Vopgram Premium','premium'],['⚙️','Настройки','profile'],['📢','Создать канал','chan'],['🤖','Vop Bot','bot'],['🛠','Админ-панель','admin'],['❓','Вопросы о Vopgram','faq']]
+  $('#drawer').innerHTML = `<div class="dr-head">${meAvatar(66)}<div class="nm">${esc(fullName(S.me))} ${meBadges()}${eq?`<span>${art(eq.gid,20)}</span>`:''}</div><div class="ph">${esc(maskPhone(S.me.phone))}</div>
+    <div class="dr-bal"><span>💳 VopCripto</span><b>${money(S.wallet)} USDT</b></div></div>
+    ${[['👤','Мой профиль','profile'],['💳','VopCripto','wallet'],['🛍','Магазин','shop'],['👥','Контакты','contacts'],['🎁','Подарки','gifts'],['🔖','Избранное','saved'],['⭐','Vopgram Premium','premium'],['⚙️','Настройки','profile'],['📢','Создать канал','chan'],['🤖','Vop Bot','bot'],['🛠','Админ-панель','admin'],['❓','Вопросы о Vopgram','faq']]
     .map(([i,t,a])=>`<div class="dr-item" data-a="${a}"><span>${i}</span><span>${t}</span></div>`).join('')}`;
   $('#drawerWrap').classList.add('open');
   $('#drawer').querySelectorAll('.dr-item').forEach(n => n.onclick = () => {
     closeDrawer(); const a = n.dataset.a;
-    if(a === 'saved') openChat('saved'); else if(a==='bot') openChat(BOT_ID); else if(a==='admin') adminGate(); else if(a==='premium') openPremium(); else if(a==='chan') createChannel(); else if(a==='faq') openFaq(); else if(a === 'x') toast('Скоро появится'); else switchTab(a);
+    if(a === 'wallet') openWallet(); else if(a === 'shop') openShop('shop'); else if(a === 'saved') openChat('saved'); else if(a==='bot') openChat(BOT_ID); else if(a==='admin') adminGate(); else if(a==='premium') openPremium(); else if(a==='chan') createChannel(); else if(a==='faq') openFaq(); else if(a === 'x') toast('Скоро появится'); else switchTab(a);
   });
 }
 const closeDrawer = () => $('#drawerWrap').classList.remove('open');
 const maskPhone = p => { const d = String(p||'').replace(/\D/g,''); return d.length < 6 ? String(p||'') : '+' + d.slice(0,2) + ' ••• ' + d.slice(-2); };
+
+/* ---------- люди Vopgram (серверный каталог) ---------- */
+const srvUrl = p => (location.protocol === 'file:' ? 'https://vopgram.onrender.com' : '') + p;
+const digitsOf = p => String(p || '').replace(/\D/g, '');
+function dirToken(){ try{ return localStorage.getItem('VOP_DIR_TOKEN') || ''; }catch(e){ return ''; } }
+function setDirToken(t){ try{ if(t) localStorage.setItem('VOP_DIR_TOKEN', t); }catch(e){} }
+function personMatch(p, q){
+  const name = String(p.name || '').toLowerCase();
+  const un = String(p.username || '').toLowerCase();
+  const dq = q.replace(/\D/g, '');
+  return name.includes(q) || un.includes(q) || (dq.length >= 3 && digitsOf(p.phone).includes(dq));
+}
+function personAvatar(p, size = 44){
+  const name = p.name || p.username || '?';
+  const color = COLORS[(name.charCodeAt(0) || 0) % COLORS.length];
+  return `<div class="av" style="width:${size}px;height:${size}px;font-size:${Math.round(size*.42)}px;background:${color}">${esc((name[0]||'?').toUpperCase())}</div>`;
+}
+function personChat(p){
+  if(!p || !p.phone) return;
+  const key = digitsOf(p.phone);
+  const isNew = !S.chats.some(x => x.phone && digitsOf(x.phone) === key);
+  const c = ensurePeerChat(p);
+  if(!c) return;
+  $('#subView').classList.remove('open');
+  openChat(c.id);
+  if(isNew) toast('Чат с ' + c.name + ' создан');
+}
+function localPeople(q){
+  const meKey = S && S.me ? digitsOf(S.me.phone) : '';
+  const out = [];
+  Object.keys(ACCS).forEach(ph => {
+    const a = ACCS[ph];
+    if(!a || !a.me) return;
+    if(digitsOf(a.me.phone) === meKey) return;
+    const p = { phone: a.me.phone, name: fullName(a.me), username: a.me.username, bio: a.me.bio,
+      major: a.me.verified === 'major', verified: !!a.me.verified && a.me.verified !== 'major' };
+    if(personMatch(p, q)) out.push(p);
+  });
+  return out;
+}
+async function searchPeople(q){
+  const meKey = S && S.me ? digitsOf(S.me.phone) : '';
+  const list = [], seen = new Set();
+  const add = p => {
+    const k = digitsOf(p.phone);
+    if(!k || k === meKey || seen.has(k)) return;
+    seen.add(k); list.push(p);
+  };
+  localPeople(q).forEach(add);
+  try{
+    const r = await fetch(srvUrl('/api/people/search?q=' + encodeURIComponent(q) + '&me=' + encodeURIComponent(meKey)), { headers: { Accept: 'application/json' } });
+    if(r.ok){ const d = await r.json(); (d.people || []).forEach(p => { if(personMatch(p, q)) add(p); }); }
+  }catch(e){}
+  return list.slice(0, 20);
+}
+async function syncDirectory(){
+  if(!S || !S.me || !S.me.phone) return;
+  const token = dirToken();
+  if(!token) return;
+  try{
+    const r = await fetch(srvUrl('/api/people/upsert'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone: S.me.phone, name: fullName(S.me), username: S.me.username || '', bio: S.me.bio || '', token }),
+    });
+    if(!r.ok) return;
+    const d = await r.json();
+    if(d && d.profile){
+      if(d.profile.major && S.me.verified !== 'major') S.me.verified = 'major';
+      else if(d.profile.verified && !S.me.verified) S.me.verified = 'blue';
+      save();
+    }
+    onlineRegister();
+  }catch(e){}
+}
+
 $('#drawerWrap').addEventListener('click', e => { if(e.target.id==='drawerWrap') closeDrawer(); });
 $('#burger').onclick = openDrawer;
 
@@ -847,19 +1101,45 @@ function renderChats(){
 }
 $('#chatSearch').oninput = renderChats;
 function openGlobalSearch(){
-  openSub('Поиск', `<div class="field"><label>Поиск по чатам, контактам и сообщениям</label><input id="gs" placeholder="Имя, @ник или текст сообщения" autocomplete="off"></div><div id="gsRes"></div>`, el => {
+  openSub('Поиск', `<div class="field"><label>Поиск людей, чатов и сообщений</label><input id="gs" placeholder="Имя, @ник или номер телефона" autocomplete="off"></div><div id="gsRes"></div>`, el => {
     const inp = el.querySelector('#gs'), box = el.querySelector('#gsRes');
+    let timer = null;
+    const bindRows = root => {
+      root.querySelectorAll('.row[data-id]').forEach(r => r.onclick = () => { $('#subView').classList.remove('open'); openChat(r.dataset.id); });
+      root.querySelectorAll('.row[data-person]').forEach(r => r.onclick = () => {
+        let p = null; try{ p = JSON.parse(decodeURIComponent(r.dataset.person)); }catch(e){}
+        if(p) personChat(p);
+      });
+    };
     const draw = () => {
       const q = inp.value.trim().toLowerCase();
-      if(!q){ box.innerHTML = '<div class="empty">Введите запрос — найдём чаты, контакты и сообщения</div>'; return; }
-      const chats = S.chats.filter(c => c.name.toLowerCase().includes(q) || (c.username||'').toLowerCase().includes(q));
+      if(!q){
+        box.innerHTML = '<div class="empty">Начните вводить имя, @ник или номер — найдём людей в Vopgram, ваши чаты и сообщения</div>';
+        return;
+      }
+      const chats = S.chats.filter(c => c.name.toLowerCase().includes(q) || (c.username||'').toLowerCase().includes(q) || digitsOf(c.phone||'').includes(q.replace(/\D/g,'')) && q.replace(/\D/g,'').length >= 3);
       const msgs = [];
-      S.chats.forEach(c => c.messages.forEach(m => { if(m.text && msgs.length < 40 && m.text.toLowerCase().includes(q)) msgs.push({c,m}); }));
+      S.chats.forEach(c => c.messages.forEach(m => { if(m.text && msgs.length < 30 && m.text.toLowerCase().includes(q)) msgs.push({c,m}); }));
       let html = '';
-      if(chats.length) html += '<div class="section">Чаты и контакты</div><div class="scard">' + chats.map(c => `<div class="row" data-id="${c.id}">${avatar(c,44)}<div class="mid"><div class="l1"><span class="nm">${esc(c.name)} ${vb(c.verified)}</span></div><div class="pv">${esc(c.status||'')}</div></div></div>`).join('') + '</div>';
+      if(chats.length) html += '<div class="section">Ваши чаты</div><div class="scard">' + chats.map(c => `<div class="row" data-id="${c.id}">${avatar(c,44)}<div class="mid"><div class="l1"><span class="nm">${esc(c.name)} ${vb(c.verified)}</span></div><div class="pv">${esc(c.status||'')}</div></div></div>`).join('') + '</div>';
       if(msgs.length) html += '<div class="section">Сообщения</div><div class="scard">' + msgs.map(({c,m}) => `<div class="row" data-id="${c.id}"><div class="mid"><div class="l1"><span class="nm">${esc(c.name)}</span><span class="tm">${fmtTime(m.ts)}</span></div><div class="pv">${hlText(m.text,q)}</div></div></div>`).join('') + '</div>';
-      box.innerHTML = html || '<div class="empty">Ничего не найдено</div>';
-      box.querySelectorAll('.row').forEach(r => r.onclick = () => { $('#subView').classList.remove('open'); openChat(r.dataset.id); });
+      box.innerHTML = html + '<div id="gsPeople"></div>' + (html ? '' : '<div class="empty" id="gsEmpty">Ищем людей в Vopgram…</div>');
+      bindRows(box);
+      clearTimeout(timer);
+      const qq = q;
+      timer = setTimeout(async () => {
+        const people = await searchPeople(qq);
+        if(inp.value.trim().toLowerCase() !== qq) return;
+        const holder = box.querySelector('#gsPeople'); if(!holder) return;
+        const empty = box.querySelector('#gsEmpty');
+        if(!people.length){
+          if(empty && !html) empty.textContent = 'Ничего не найдено';
+          return;
+        }
+        if(empty) empty.remove();
+        holder.innerHTML = '<div class="section">Люди Vopgram · ' + people.length + '</div><div class="scard">' + people.map(p => `<div class="row" data-person="${encodeURIComponent(JSON.stringify(p))}">${personAvatar(p,44)}<div class="mid"><div class="l1"><span class="nm">${esc(p.name||'Пользователь')} ${p.major?vb('major'):(p.verified?vb('blue'):'')}</span></div><div class="pv">${p.username?('@'+esc(p.username)):esc(maskPhone(p.phone))}${p.bio?' · '+esc(p.bio):''}</div></div><span class="usp">написать</span></div>`).join('') + '</div>';
+        bindRows(holder);
+      }, 240);
     };
     inp.oninput = draw; draw();
     setTimeout(() => inp.focus(), 60);
@@ -867,7 +1147,8 @@ function openGlobalSearch(){
 }
 $('#fabNew').onclick = () => {
   optionsSheet('Новый чат', [
-    ...S.chats.filter(c => !c.kind).map(c => ({html:avatar(c,36)+esc(c.name), fn:()=>openChat(c.id)})),
+    {html:'<span style="font-size:22px;width:36px;text-align:center">🔎</span> Найти людей', fn:openGlobalSearch},
+    ...S.chats.filter(c => !c.kind || c.kind === 'person').map(c => ({html:avatar(c,36)+esc(c.name), fn:()=>openChat(c.id)})),
     {html:'<span style="font-size:22px;width:36px;text-align:center">＋</span> Новый контакт', fn:addContactFlow}]);
 };
 function addContactFlow(){
@@ -878,9 +1159,9 @@ function addContactFlow(){
   }, 'Добавить');
 }
 function renderContacts(){
-  const people = S.chats.filter(c => !c.kind).sort((a,b)=>a.name.localeCompare(b.name,'ru'));
+  const people = S.chats.filter(c => !c.kind || c.kind === 'person').sort((a,b)=>a.name.localeCompare(b.name,'ru'));
   $('#contactList').innerHTML = people.length ? `<div class="section">${people.length} контактов</div>` + people.map(c =>
-    `<div class="row" data-id="${c.id}">${avatar(c,46)}<div class="mid"><div class="l1"><span class="nm">${esc(c.name)} ${vb(c.verified)}</span></div><div class="pv">${esc(c.status)}</div></div></div>`).join('') : '<div class="empty">Контактов пока нет</div>';
+    `<div class="row" data-id="${c.id}">${avatar(c,46)}<div class="mid"><div class="l1"><span class="nm">${esc(c.name)} ${vb(c.verified)}</span></div><div class="pv">${esc(c.phone ? maskPhone(c.phone) : c.status)}</div></div></div>`).join('') : '<div class="empty">Контактов пока нет</div>';
   $('#contactList').querySelectorAll('.row').forEach(r => r.onclick = () => openChat(r.dataset.id)); bindAv($('#contactList'));
 }
 $('#addContact').onclick = addContactFlow;
@@ -898,6 +1179,7 @@ function openChat(id){
   $('#chatView').classList.add('open');
   document.querySelector('.composer').style.display = cur.kind==='news' ? 'none' : '';
   renderMsgs(); renderChats();
+  if(cur.phone){ onlinePoll(); onlineMarkRead(cur); }
   if(cur.kind !== 'news') setTimeout(()=>$('#input').focus(),50);
 }
 function setStatus(typing){ const el=$('#chatStatus'); el.textContent = typing ? 'печатает…' : cur.status; el.classList.toggle('typing',!!typing); }
@@ -937,16 +1219,19 @@ function syncSend(){ const has = input.value.trim().length>0, b=$('#sendBtn'); b
 input.addEventListener('input', () => { autoGrow(); syncSend(); });
 input.addEventListener('keydown', e => { if(e.key==='Enter' && !e.shiftKey && innerWidth>600){ e.preventDefault(); send(); } });
 $('#sendBtn').onclick = () => input.value.trim() ? send() : toast('Голосовые сообщения скоро появятся 🎙');
-const pushMsg = (c, msg) => c.messages.push({id:uid(),ts:Date.now(),read:false,...msg});
+const pushMsg = (c, msg) => { const o = {id:uid(),ts:Date.now(),read:false,...msg}; c.messages.push(o); return o; };
 function send(){
   const text = input.value.trim(); if(!text || !cur) return;
   if(cur.banned){ toast('Аккаунт заблокирован'); return; }
   if(cur.kind === 'news'){ toast('В канал писать нельзя'); return; }
-  pushMsg(cur, {out:true,text});
-  input.value=''; autoGrow(); syncSend(); save(); renderMsgs(); if(cur.kind==='bot') botTurn(cur,text); else if(cur.kind==='tg') tgSend(cur,text); else scheduleReply(cur,'text');
+  const sentMsg = pushMsg(cur, {out:true,text});
+  input.value=''; autoGrow(); syncSend(); save(); renderMsgs();
+  if(cur.phone) onlineSend(cur, text, sentMsg.id);
+  else if(cur.kind==='bot') botTurn(cur,text); else if(cur.kind==='tg') tgSend(cur,text); else scheduleReply(cur,'text');
 }
 function scheduleReply(c, kind){ if(c.banned) return;
   if(c.kind === 'saved' || c.kind === 'news' || c.kind === 'chan'){ c.messages.forEach(m=>m.read=true); save(); renderMsgs(); return; }
+  if(c.kind === 'person'){ c.messages.forEach(m => { if(m.out) m.read = true; }); save(); return; }
   clearTimeout(typingTimer);
   typingTimer = setTimeout(() => {
     c.messages.forEach(m => { if(m.out) m.read = true; });
@@ -1155,7 +1440,15 @@ function renderProfile(){
     <div class="pf-top ${isPrem()&&!topBg?'prem':''}" style="${topBg}">${patHtml}${meAvatar(120)}
       <div class="pf-name"><span>${esc(fullName(me))}</span>${meBadges()}${eq?`<span>${art(eq.gid,26,parts(eq).f)}</span>`:''}</div>
       <div class="pf-status"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z" fill="#fff" stroke="none"/><path d="M12 8v5" stroke="#111"/></svg>в сети</div></div>
+    <div class="vc-mini" data-a="wallet">
+      <div class="vc-mini-l">Vop<b>Cripto</b> · кошелёк</div>
+      <div class="vc-mini-v">${money(S.wallet)} <span>USDT</span></div>
+      <div class="vc-mini-s">Пополнить, вывести и купить в магазине</div>
+      <div class="vc-mini-go">Открыть →</div>
+    </div>
     <div class="scard">
+      ${srow('gem','#00FFAA',money(S.wallet)+' USDT','VopCripto · кошелёк','','wallet')}
+      ${srow('folder','#3A86FF','Магазин VopCripto','Номера, галочки и Premium','','shop')}
       ${srow('phone','#4cc15f',esc(me.phone),'Телефон','','phone')}
       ${me.anon?srow('phone','#f5b301',esc(me.anon),'Анонимный номер · Fragment','','anon'):''}
       ${srow('at','#2ba5f7','@'+esc(me.username),'Имя пользователя',QR,'username')}
@@ -1189,7 +1482,7 @@ function renderProfile(){
       ${srow('lock','#7e57e6','Админ-панель','Управление приложением, ботом и подарками','','admin')}
       <div class="srow danger" data-a="logout">${ico('logout','#ef5350')}<div class="sm"><div class="st1">Выйти</div></div></div>
     </div>`;
-  $('#profileBody').querySelectorAll('.srow').forEach(n => n.onclick = () => settingAction(n.dataset.a));
+  $('#profileBody').querySelectorAll('[data-a]').forEach(n => n.onclick = () => settingAction(n.dataset.a));
   bindOwnGifts();
 }
 $('#setBack').onclick = () => switchTab('chats');
@@ -1215,7 +1508,7 @@ function editProfileForm(){
     if(v[0]) m.name = v[0]; m.surname = v[1]; m.bio = v[3]; m.birthday = v[4];
     const un = (v[2]||'').replace(/^@/,''); let er = '';
     if(un && un !== m.username){ er = usernameError(un); if(!er) m.username = un; }
-    save(); renderProfile(); toast(er || 'Профиль обновлён');
+    save(); renderProfile(); syncDirectory(); toast(er || 'Профиль обновлён');
   }, 'Сохранить');
 }
 function editField(key, label, type){
@@ -1227,11 +1520,11 @@ function settingAction(a){
     phone:()=>toast('Номер телефона изменить нельзя в демо-версии'), username:()=>editField('username','Имя пользователя'), bio:()=>editField('bio','О себе'), bday:()=>editField('birthday','День рождения','date'),
     account:openAccount, general:openGeneral, notif:openNotif, privacy:openPrivacy, data:openData, folders:soon, anim:openAnim, stickers:soon, lang:openLang, sessions:openSessions,
     
-    stars:starsSheet, vop:()=>toast('Здесь появятся заработанные VOP'), mygifts:openMyGifts, sendgift:()=>switchTab('gifts'),
+    stars:starsSheet, wallet:openWallet, shop:()=>openShop('shop'), vop:()=>toast('Здесь появятся заработанные VOP'), mygifts:openMyGifts, sendgift:()=>switchTab('gifts'),
     ask:()=>openChat(BOT_ID), faq:openFaq, policy:openPolicy, anon:()=>toast('Анонимный номер +888 привязан к вашему аккаунту'), premium:openPremium, admin:adminGate, logout:logoutFlow
   }[a] || soon)();
 }
-function logoutFlow(){ optionsSheet('Выйти из аккаунта?', [{html:'Выйти', danger:true, fn:()=>{ try{localStorage.removeItem(SES_KEY);}catch(e){} PHONE=null; S=null; $('#subView').classList.remove('open'); $('#chatView').classList.remove('open'); startAuth(); }}], 'Данные сохранятся на этом устройстве. Вы сможете войти снова по номеру телефона.'); }
+function logoutFlow(){ optionsSheet('Выйти из аккаунта?', [{html:'Выйти', danger:true, fn:()=>{ try{localStorage.removeItem(SES_KEY);}catch(e){} clearInterval(onlineTimer); onlineStarted=false; PHONE=null; S=null; $('#subView').classList.remove('open'); $('#chatView').classList.remove('open'); startAuth(); }}], 'Данные сохранятся на этом устройстве. Вы сможете войти снова по номеру телефона.'); }
 
 function openSub(title, html, bind){ delete $('#subTitle').dataset.up; $('#subTitle').textContent = title; $('#subBody').innerHTML = html; $('#subView').classList.add('open'); bind && bind($('#subBody')); }
 $('#subBack').onclick = () => $('#subView').classList.remove('open');
@@ -1293,7 +1586,7 @@ function countrySheet(){
 const fullPhone = () => `+${COUNTRIES[A.cc][2]} ${fmtDigits(A.digits)}`;
 function showBanner(title, text){ const b=$('#banner'); b.innerHTML = `<div style="font-size:28px">💬</div><div><b>${esc(title)}</b><span>${esc(text)}</span></div>`; b.classList.add('show'); clearTimeout(showBanner.t); showBanner.t=setTimeout(()=>b.classList.remove('show'),9000); }
 function startAuth(){ A = {cc:DEF_CC,digits:'',code:'',step:'phone',cooldown:0}; $('#auth').classList.add('open'); applyTheme(); renderAuth(); }
-const LOGO = `<div class="av" style="width:112px;height:112px;font-size:60px;background:radial-gradient(circle at 30% 25%,#ffb3d9,#c77dff 45%,#5a4fcf);box-shadow:0 8px 30px rgba(122,90,255,.35)">🐰</div>`;
+const LOGO = `<div class="vlogo">${vMark(112)}</div>`;
 function renderAuth(){
   const el = $('#auth');
   if(A.step === 'phone'){
@@ -1356,6 +1649,11 @@ function loginAs(ph){
   PHONE = ph; S = ACCS[ph];
   if(!S.prefs) S.prefs = {sound:true,preview:true,badge:true,showBday:true,anim:true};
   if(!S.listings) S.listings=[]; if(S.premium==null) S.premium=0;
+  if(S.wallet==null) S.wallet=12450.80;
+  if(!Array.isArray(S.walletTx)) S.walletTx=[{ t:'Бонус за регистрацию', a:+Number(S.wallet).toFixed(2), ts:Date.now() }];
+  if(!Array.isArray(S.walletNumbers)) S.walletNumbers=[];
+  if(!Array.isArray(S.walletListings)) S.walletListings=[];
+  if(S.onlineSeq==null) S.onlineSeq=0;
   if(!S.migr1){ S.migr1=1; S.chats=S.chats.filter(c=>!['anna','max','mom','dima'].includes(c.id)); }
   GIFTS.forEach(g => { if(S.left[g.id]==null) S.left[g.id] = Math.floor(g.sup*(.3+Math.random()*.5)); });
   try{ localStorage.setItem(SES_KEY, PHONE); }catch(e){}
@@ -1364,6 +1662,8 @@ function loginAs(ph){
 function startApp(isNew){
   $('#auth').classList.remove('open');
   applyTheme(); ensureBot(); renderAll(); switchTab('chats');
+  syncDirectory();
+  onlineBoot();
   if(isNew) setTimeout(()=>toast(`Добро пожаловать, ${S.me.name}!`), 400);
   checkBirthday();
 }
@@ -1453,7 +1753,7 @@ function ensureUP(c){
 function refreshUP(id){ if($('#subView').classList.contains('open') && $('#subTitle').dataset.up===id) openUserProfile(id); }
 function bindAv(root){
   root.querySelectorAll('.row').forEach(r => { const c = chatById(r.dataset.id), a = r.querySelector('.av');
-    if(c && a && (!c.kind || c.kind==='mom' || c.kind==='tg')) a.onclick = e => { e.stopPropagation(); upTab='gifts'; openUserProfile(c.id); }; });
+    if(c && a && (!c.kind || c.kind==='mom' || c.kind==='tg' || c.kind==='person')) a.onclick = e => { e.stopPropagation(); upTab='gifts'; openUserProfile(c.id); }; });
 }
 const ptabs = (n, tab) => `<div class="ptabs">${[['gifts','Подарки'+(n?' '+n:'')],['posts','Публикации'],['arch','Архив историй']].map(x => `<button data-pt="${x[0]}" class="${tab===x[0]?'on':''}">${x[1]}</button>`).join('')}</div>`;
 const pgCell = (o, attr, extra='') => `<div class="pg ${rc(o)}" ${attr}>${tile(o,112,62)}<i class="frm">${esc(((o.from||'?')[0]||'?').toUpperCase())}</i>${extra}</div>`;
@@ -1497,6 +1797,356 @@ function openOtherGift(c, i){
 }
 
 /* ---------- запуск ---------- */
+/* ---------- VopCripto wallet ---------- */
+function money(n){ return Number(n || 0).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+function walletTxAdd(title, amount){
+  if(!Array.isArray(S.walletTx)) S.walletTx = [];
+  S.walletTx.unshift({ t: title, a: +Number(amount).toFixed(2), ts: Date.now() });
+  if(S.walletTx.length > 60) S.walletTx.length = 60;
+}
+function walletSpend(amount, title){
+  const a = +Number(amount).toFixed(2);
+  if(a <= 0) return false;
+  if(+Number(S.wallet || 0) < a){ toast('Недостаточно USDT на VopCripto'); return false; }
+  S.wallet = +(+Number(S.wallet || 0) - a).toFixed(2);
+  walletTxAdd(title, -a);
+  return true;
+}
+function vcCardNumber(){
+  const d = digitsOf(S.me.phone).padEnd(12, '0').slice(-12);
+  return '8888 ' + d.slice(0,4) + ' ' + d.slice(4,8) + ' ' + d.slice(8,12);
+}
+function vcCvv(){
+  const d = digitsOf(S.me.phone).padEnd(6, '7');
+  return String((+d.slice(-3) + 137) % 900 + 100);
+}
+function vcExp(){
+  const d = new Date(); const y = (d.getFullYear() + 4) % 100;
+  return '12/' + String(y).padStart(2, '0');
+}
+function openWallet(){
+  if(!S) return;
+  const un = esc(S.me.username || 'vopgram');
+  const bal = money(S.wallet);
+  const tx = (S.walletTx || []).slice(0, 14).map(t => `<div class="vc-tx"><i>${t.a >= 0 ? '↓' : '↑'}</i><div class="tx-m"><div class="tx-t">${esc(t.t)}</div><div class="tx-d">${new Date(t.ts).toLocaleString('ru-RU', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</div></div><div class="tx-a ${t.a >= 0 ? 'up' : 'dn'}">${t.a >= 0 ? '+' : ''}${money(t.a)}</div></div>`).join('');
+  openSub('VopCripto', `<div class="vc-wrap">
+    <div class="vc-scene"><div class="vc-card" id="vcCard">
+      <div class="vc-face vc-front">
+        <div class="vc-top"><div class="vc-logo">Vop<span>Cripto</span></div><div class="vc-nfc"></div></div>
+        <div class="vc-bal"><div class="vc-lab">Общий баланс</div><div class="vc-amt">${bal} <span>USDT</span></div></div>
+        <div class="vc-chip"></div>
+        <div class="vc-num">${vcCardNumber()}</div>
+        <div class="vc-bottom"><div><div class="vc-lab">Владелец</div><div class="vc-holder">@${un}</div></div><div><div class="vc-lab">Срок действия</div><div class="vc-exp">${vcExp()}</div></div></div>
+      </div>
+      <div class="vc-face vc-back">
+        <div class="vc-mag"></div>
+        <div class="vc-sig"><div class="vc-cvv">${vcCvv()}</div></div>
+        <div class="vc-backb"><div class="vc-qr">${Array.from({ length: 25 }, () => '<i></i>').join('')}</div><div class="vc-bnick"><small>Verified User</small><span>@${un}</span></div></div>
+      </div>
+    </div></div>
+    <div class="vc-acts">
+      <button data-vc="top"><i>＋</i>Пополнить</button>
+      <button data-vc="shop"><i>🛍</i>Магазин</button>
+      <button data-vc="out"><i>↗</i>Вывести</button>
+    </div>
+    <div class="scard">
+      ${srow('gem','#00FFAA',bal + ' USDT','Баланс VopCripto','','x')}
+      ${srow('starO','#f59e0b',String((S.walletNumbers || []).length),'Купленные номера','','shop-assets')}
+      ${srow('gift','#ff8a3d',String((S.walletListings || []).length),'Лоты на продаже','','shop-assets')}
+    </div>
+    <div class="section">Последние операции</div>
+    <div class="scard" style="margin-bottom:14px">${tx || '<div class="vc-tx"><div class="tx-m"><div class="tx-t">Пока нет операций</div><div class="tx-d">Пополните кошелёк или купите что-нибудь в магазине</div></div></div>'}</div>
+    <p class="vc-note">VopCripto — внутренний кошелёк Vopgram. Пополнение и вывод в USDT — через @Dollarsvc. Нажмите на карту, чтобы перевернуть.</p>
+  </div>`, el => {
+    const card = el.querySelector('#vcCard');
+    if(card) card.onclick = () => card.classList.toggle('flip');
+    el.querySelectorAll('[data-vc]').forEach(b => b.onclick = () => {
+      const a = b.dataset.vc;
+      if(a === 'top') walletTopupSheet();
+      else if(a === 'out') walletWithdrawSheet();
+      else if(a === 'shop') openShop('shop');
+    });
+    el.querySelectorAll('[data-a]').forEach(n => n.onclick = () => { if(n.dataset.a === 'shop-assets') openShop('assets'); });
+  });
+}
+function walletTopupSheet(){
+  optionsSheet('Пополнить VopCripto', [10, 50, 100, 500].map(a => ({ html: `＋ ${a} USDT`, fn: () => walletTopup(a) })),
+    'Перевод в USDT через @Dollarsvc. В тестовом режиме баланс пополняется сразу.');
+}
+function walletTopup(a){
+  S.wallet = +(+Number(S.wallet || 0) + Number(a)).toFixed(2);
+  walletTxAdd('Пополнение через @Dollarsvc', a);
+  save(); renderProfile(); openWallet(); toast('Баланс пополнен на ' + money(a) + ' USDT');
+}
+function walletWithdrawSheet(){
+  formSheet('Вывести USDT', [{ label: 'Сумма (USDT)', type: 'number', value: '' }, { label: 'Адрес кошелька', value: '' }], v => {
+    const a = +Number(v[0]).toFixed(2), addr = (v[1] || '').trim();
+    if(!(a > 0)) return toast('Укажите сумму');
+    if(addr.length < 8) return toast('Укажите адрес кошелька');
+    if(!walletSpend(a, 'Вывод на ' + addr.slice(0, 12) + '…')) return;
+    save(); renderProfile(); openWallet(); toast('Заявка на вывод ' + money(a) + ' USDT создана');
+  }, 'Вывести');
+}
+
+/* ---------- shop ---------- */
+const SHOP_ITEMS = [
+  { id: 'num888', icon: '🌐', t: 'Анонимный +888', d: 'Код страны +888 · 10 цифр · для анонимности', p: 5 },
+  { id: 'num39', icon: '🇮🇹', t: 'Номер +39', d: 'Итальянский виртуальный номер', p: 3 },
+  { id: 'num1', icon: '🇺🇸', t: 'Номер +1', d: 'Виртуальный номер США', p: 2 },
+  { id: 'major', icon: '⭐', t: 'Major', d: 'Золотая галочка рядом с именем', p: 4 },
+  { id: 'verify', icon: '✅', t: 'Галочка', d: 'Синяя галочка подтверждённого аккаунта', p: 2 },
+  { id: 'premium', icon: '💎', t: 'Premium · 30 дней', d: 'Значок, скидки и эксклюзивные темы', p: 9 },
+];
+function genShopNumber(kind){
+  let n;
+  do { n = '+' + kind + String(Math.floor(Math.random() * 9000000000 + 1000000000)); }
+  while((S.walletNumbers || []).some(x => x.num === n));
+  return n;
+}
+function doShopBuy(it){
+  if(!walletSpend(it.p, 'Покупка: ' + it.t)) return;
+  if(it.id === 'num888' || it.id === 'num39' || it.id === 'num1'){
+    const num = genShopNumber(it.id === 'num888' ? '888' : it.id === 'num39' ? '39' : '1');
+    if(!Array.isArray(S.walletNumbers)) S.walletNumbers = [];
+    S.walletNumbers.unshift({ id: uid(), num, kind: it.id, at: Date.now() });
+  } else if(it.id === 'major'){
+    S.me.verified = 'major';
+  } else if(it.id === 'verify'){
+    if(S.me.verified !== 'major') S.me.verified = 'blue';
+  } else if(it.id === 'premium'){
+    givePrem(30 * D);
+  }
+  save(); renderAll(); openShop(it.id.startsWith('num') ? 'assets' : 'shop'); toast('Куплено: ' + it.t);
+}
+function shopBuy(id){
+  const it = SHOP_ITEMS.find(x => x.id === id); if(!it) return;
+  optionsSheet(it.t, [{ html: `Купить за ${it.p} USDT`, fn: () => doShopBuy(it) }], it.d + '. Спишется с баланса VopCripto.');
+}
+function shopAssetAction(act, id){
+  if(act === 'main'){
+    const n = (S.walletNumbers || []).find(x => x.id === id); if(!n) return;
+    S.me.anon = n.num; save(); renderProfile(); openShop('assets'); toast('Основной номер: ' + n.num);
+  } else if(act === 'copy'){
+    const n = (S.walletNumbers || []).find(x => x.id === id); if(!n) return;
+    try { navigator.clipboard.writeText(n.num); } catch(e) {}
+    toast('Номер скопирован');
+  } else if(act === 'delnum'){
+    S.walletNumbers = (S.walletNumbers || []).filter(x => x.id !== id); save(); openShop('assets'); toast('Номер удалён');
+  } else if(act === 'dellist'){
+    S.walletListings = (S.walletListings || []).filter(x => x.id !== id); save(); openShop('assets'); toast('Лот снят с продажи');
+  }
+}
+function paintShop(body, tab){
+  if(!body) return;
+  const nums = S.walletNumbers || [], lists = S.walletListings || [];
+  if(tab === 'shop'){
+    body.innerHTML = `<div class="sh-head">Товары</div>` + SHOP_ITEMS.map(it => `<div class="sh-item"><div class="sh-ico">${it.icon}</div><div class="sh-m"><div class="sh-t">${it.t}</div><div class="sh-d">${it.d}</div></div><div class="sh-p">$${it.p}</div><button class="sh-buy" data-buy="${it.id}">Купить</button></div>`).join('');
+    body.querySelectorAll('[data-buy]').forEach(b => b.onclick = () => shopBuy(b.dataset.buy));
+  } else if(tab === 'assets'){
+    const kindName = k => k === 'num888' ? '+888' : k === 'num39' ? '+39' : k === 'num1' ? '+1' : k;
+    body.innerHTML = `<div class="sh-head">Купленные номера</div>` +
+      (nums.length ? nums.map(n => `<div class="sh-asset"><h4>${esc(n.num)}</h4><p>${kindName(n.kind)} · куплен ${new Date(n.at).toLocaleDateString('ru-RU')}${S.me.anon === n.num ? ' · основной' : ''}</p><div class="row"><button data-act="main" data-id="${n.id}">Сделать основным</button><button data-act="copy" data-id="${n.id}">Копировать</button><button class="danger" data-act="delnum" data-id="${n.id}">Удалить</button></div></div>`).join('') : '<div class="sh-empty">У вас пока нет купленных номеров. Загляните в магазин.</div>') +
+      `<div class="sh-head">На продаже</div>` +
+      (lists.length ? lists.map(l => `<div class="sh-asset"><h4>${esc(l.title)}</h4><p>${esc(l.desc || 'Без описания')} · ${money(l.price)} USDT</p><div class="row"><button class="danger" data-act="dellist" data-id="${l.id}">Снять с продажи</button></div></div>`).join('') : '<div class="sh-empty">Вы ничего не продаёте.</div>');
+  } else {
+    body.innerHTML = `<div class="sh-head">Выставить на продажу</div>
+      <div class="sh-field"><label>Что продаёте?</label><input id="slTitle" placeholder="Например: аккаунт Vopgram"></div>
+      <div class="sh-field"><label>Описание</label><input id="slDesc" placeholder="Отлежавшийся аккаунт, чистый номер"></div>
+      <div class="sh-field"><label>Цена (USDT)</label><input id="slPrice" type="number" min="1" placeholder="3"></div>
+      <button class="sh-sub" id="slGo">Выставить на продажу</button>`;
+    const go = body.querySelector('#slGo');
+    if(go) go.onclick = () => {
+      const title = (body.querySelector('#slTitle').value || '').trim();
+      const desc = (body.querySelector('#slDesc').value || '').trim();
+      const price = +Number(body.querySelector('#slPrice').value).toFixed(2);
+      if(!title) return toast('Укажите название');
+      if(!(price > 0)) return toast('Укажите цену');
+      if(!Array.isArray(S.walletListings)) S.walletListings = [];
+      S.walletListings.unshift({ id: uid(), title, desc, price, at: Date.now() });
+      save(); openShop('assets'); toast('Лот выставлен на продажу');
+    };
+  }
+  body.querySelectorAll('[data-act]').forEach(b => b.onclick = () => shopAssetAction(b.dataset.act, b.dataset.id));
+}
+function openShop(tab){
+  tab = ['shop','assets','sell'].includes(tab) ? tab : 'shop';
+  openSub('Магазин', `<div class="sh-tabs">
+      <button class="sh-tab ${tab==='shop'?'on':''}" data-t="shop">Магазин</button>
+      <button class="sh-tab ${tab==='assets'?'on':''}" data-t="assets">Мои активы</button>
+      <button class="sh-tab ${tab==='sell'?'on':''}" data-t="sell">Продать</button>
+    </div>
+    <div class="sh-bal"><div><b>${money(S.wallet)} USDT</b><br><small>Баланс VopCripto</small></div><button id="shTop">Пополнить</button></div>
+    <div id="shBody"></div>`, el => {
+      el.querySelectorAll('.sh-tab').forEach(b => b.onclick = () => openShop(b.dataset.t));
+      const top = el.querySelector('#shTop'); if(top) top.onclick = walletTopupSheet;
+      paintShop(el.querySelector('#shBody'), tab);
+    });
+}
+
+/* ---------- real online messaging ---------- */
+let onlinePeers = {}, onlineStarted = false, onlineTimer = null, onlineBusy = false, onlineWarned = false;
+function onlineSecret(){
+  try {
+    let s = localStorage.getItem('VOP_ONLINE_SECRET');
+    if(!s){ s = uid() + uid() + Date.now().toString(36); localStorage.setItem('VOP_ONLINE_SECRET', s); }
+    return s;
+  } catch(e){ return 'local-' + digitsOf(S && S.me ? S.me.phone : 'guest'); }
+}
+function onlinePayload(extra){
+  return Object.assign({ phone: S.me.phone, token: dirToken(), secret: onlineSecret() }, extra || {});
+}
+function ensurePeerChat(p){
+  const key = digitsOf(p && p.phone);
+  if(!key) return null;
+  let c = S.chats.find(x => x.phone && digitsOf(x.phone) === key);
+  if(!c){
+    c = {
+      id: 'p' + uid(),
+      name: (p.name || (p.username ? '@' + p.username : maskPhone(p.phone)) || 'Пользователь'),
+      username: p.username || '',
+      phone: p.phone,
+      kind: 'person',
+      color: rnd(0, 5),
+      unread: 0,
+      status: p.bio || 'в Vopgram',
+      messages: [],
+    };
+    if(p.major) c.verified = 'major';
+    else if(p.verified) c.verified = 'blue';
+    S.chats.push(c);
+  } else {
+    if(p.name) c.name = p.name;
+    if(p.username) c.username = p.username;
+    if(p.bio) c.status = p.bio;
+  }
+  return c;
+}
+function mergeOnline(d, history){
+  if(!d) return false;
+  let changed = false, incoming = 0;
+  (d.peers || []).forEach(p => { const k = digitsOf(p.phone); if(k) onlinePeers[k] = p; });
+  const me = digitsOf(S.me.phone);
+  (d.messages || []).forEach(m => {
+    const from = digitsOf(m.from), to = digitsOf(m.to);
+    if(from !== me && to !== me) return;
+    const mine = from === me;
+    const peerPhone = mine ? m.to : m.from;
+    const peer = onlinePeers[digitsOf(peerPhone)] || { phone: peerPhone, name: '' };
+    const c = ensurePeerChat(peer);
+    if(!c) return;
+    let msg = c.messages.find(x => x.id === m.id);
+    if(!msg){
+      c.messages.push({ id: m.id, out: mine, text: m.text, ts: m.at, read: !!m.read });
+      changed = true;
+      if(!mine){ c.unread = (c.unread || 0) + 1; incoming++; }
+    } else if(msg.ts !== m.at || msg.read !== !!m.read){
+      msg.ts = m.at; msg.read = !!m.read; changed = true;
+    }
+    if(history){ c.unread = 0; c.messages.forEach(x => x.read = true); }
+  });
+  if(changed){
+    save();
+    renderChats(); renderContacts();
+    const isOpen = cur && cur.phone && ((d.messages || []).some(m => digitsOf(m.from) === digitsOf(cur.phone) || digitsOf(m.to) === digitsOf(cur.phone)));
+    if(isOpen){
+      cur.unread = 0; renderMsgs(); renderChats(); onlineMarkRead(cur);
+    } else if(incoming && !history){
+      toast(incoming === 1 ? 'Новое сообщение' : incoming + ' новых сообщений');
+      if(S.prefs && S.prefs.preview) showBanner('Vopgram', incoming === 1 ? 'Новое сообщение' : incoming + ' новых сообщений');
+    }
+  }
+  return changed;
+}
+async function onlineHistory(){
+  try{
+    const r = await fetch(srvUrl('/api/online/history'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(onlinePayload()) });
+    if(!r.ok) return false;
+    const d = await r.json();
+    mergeOnline(d, true);
+    S.onlineSeq = Math.max(0, d.maxSeq || 0);
+    save();
+    return true;
+  } catch(e){ return false; }
+}
+async function onlineRegister(){
+  if(!S || !S.me || !S.me.phone) return false;
+  try{
+    const r = await fetch(srvUrl('/api/online/register'), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(onlinePayload({ name: fullName(S.me), username: S.me.username || '', bio: S.me.bio || '' })),
+    });
+    if(!r.ok){ onlineStarted = false; return false; }
+    const d = await r.json();
+    onlineStarted = true;
+    (d.peers || []).forEach(p => { const k = digitsOf(p.phone); if(k) onlinePeers[k] = p; });
+    if(!S.onlineSeq || (d.maxSeq || 0) < (S.onlineSeq || 0)) { S.onlineSeq = 0; await onlineHistory(); }
+    else { S.onlineSeq = Math.max(S.onlineSeq || 0, d.maxSeq || 0); save(); }
+    return true;
+  } catch(e){ onlineStarted = false; return false; }
+}
+async function onlinePoll(){
+  if(!onlineStarted || onlineBusy || !S || !S.me) return;
+  onlineBusy = true;
+  try{
+    const r = await fetch(srvUrl('/api/online/poll'), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(onlinePayload({ since: S.onlineSeq || 0 })),
+    });
+    if(r.ok){
+      const d = await r.json();
+      if((d.maxSeq || 0) < (S.onlineSeq || 0)){
+        S.onlineSeq = 0;
+        await onlineHistory();
+      } else {
+        const had = mergeOnline(d, false);
+        if((d.maxSeq || 0) > (S.onlineSeq || 0)){ S.onlineSeq = d.maxSeq; save(); }
+        else if(had) save();
+      }
+    }
+  } catch(e){}
+  onlineBusy = false;
+}
+function onlineBoot(){
+  clearInterval(onlineTimer); onlineStarted = false;
+  onlineRegister().then(ok => {
+    if(!ok) return;
+    onlinePoll();
+    onlineTimer = setInterval(onlinePoll, 2500);
+  });
+}
+async function onlineSend(c, text, id){
+  if(!c || !c.phone) return;
+  if(!onlineStarted) await onlineRegister();
+  if(!onlineStarted) return;
+  try{
+    const r = await fetch(srvUrl('/api/online/send'), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(onlinePayload({ to: c.phone, text, id })),
+    });
+    if(!r.ok){
+      if(!onlineWarned){ onlineWarned = true; toast('Не удалось отправить: подтвердите номер через бота'); }
+      return;
+    }
+    const d = await r.json();
+    if(d.msg){
+      const m = c.messages.find(x => x.id === id);
+      if(m){ m.ts = d.msg.at; m.read = !!d.msg.read; }
+      S.onlineSeq = Math.max(S.onlineSeq || 0, d.msg.seq || 0);
+      save(); renderChats();
+    }
+  } catch(e){}
+}
+async function onlineMarkRead(c){
+  if(!onlineStarted || !c || !c.phone) return;
+  try{
+    await fetch(srvUrl('/api/online/read'), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(onlinePayload({ peer: c.phone })),
+    });
+  } catch(e){}
+}
+
+
 (function boot(){
   let ses = null; try{ ses = localStorage.getItem(SES_KEY); }catch(e){}
   if(ses && ACCS[ses]){ loginAs(ses); } else { startAuth(); }
@@ -1525,6 +2175,130 @@ function openOtherGift(c, i){
 .ggrid .gtile .gart svg{filter:drop-shadow(0 8px 10px rgba(0,0,0,.45))}
 .ggrid .gtile .price{background:linear-gradient(180deg,#f3a63a,#d9801a);color:#fff;font-weight:700;border-radius:14px;padding:3px 11px;box-shadow:0 2px 6px rgba(0,0,0,.35)}
 .ribbon{background:linear-gradient(90deg,#4cc15f,#2fa245);box-shadow:0 1px 4px rgba(0,0,0,.4)}
+
+/* логотип */
+.vlogo{width:112px;height:112px;filter:drop-shadow(0 18px 34px rgba(92,72,220,.45));animation:vIn .5s ease both}
+.vlogo svg{width:100%;height:100%}
+@keyframes vIn{from{opacity:0;transform:scale(.9) translateY(6px)}to{opacity:1;transform:none}}
+
+/* админ-панель */
+.adm-hero{margin:12px;border-radius:24px;padding:18px;background:linear-gradient(145deg,#2b2263 0%,#1b1b2c 58%,#12131a 100%);border:1px solid rgba(135,116,225,.30);box-shadow:0 18px 42px rgba(0,0,0,.38);position:relative;overflow:hidden}
+.adm-hero::after{content:'';position:absolute;width:220px;height:220px;right:-70px;top:-110px;border-radius:50%;background:radial-gradient(circle,rgba(135,116,225,.38),transparent 70%)}
+.adm-hero-top{display:flex;align-items:center;gap:12px;position:relative}
+.adm-hero-logo{width:54px;height:54px;flex-shrink:0;filter:drop-shadow(0 8px 16px rgba(92,72,220,.55))}
+.adm-hero-logo svg{width:100%;height:100%}
+.adm-hero-title{font-size:19px;font-weight:800;letter-spacing:.2px}
+.adm-hero-sub{font-size:12.5px;color:#9aa0b5;margin-top:2px;overflow-wrap:anywhere}
+.adm-pill{margin-left:auto;font-size:11.5px;font-weight:700;padding:5px 9px;border-radius:999px;background:rgba(255,255,255,.08);color:#a9adbd;white-space:nowrap}
+.adm-pill.on{background:rgba(76,193,95,.16);color:#6fe08a}
+.adm-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:16px;position:relative}
+.adm-stats>div{background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:9px 5px;text-align:center;min-width:0}
+.adm-stats b{display:block;font-size:17px;line-height:1.25;overflow:hidden;text-overflow:ellipsis}
+.adm-stats span{font-size:11px;color:#9aa0b5}
+.adm-note{margin:10px 16px 4px;font-size:12.5px;line-height:1.5;color:var(--muted)}
+.usp{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:#8e7bff;background:rgba(135,116,225,.13);padding:2px 7px;border-radius:999px;vertical-align:1px}
+
+/* ---------- VopCripto wallet ---------- */
+.vc-mini{margin:12px 12px 2px;border-radius:20px;padding:14px 16px;position:relative;overflow:hidden;cursor:pointer;
+  background:linear-gradient(120deg,#16233a 0%,#141026 55%,#201747 100%);border:1px solid rgba(58,134,255,.25);
+  box-shadow:0 12px 32px rgba(0,0,0,.32),inset 0 1px 0 rgba(255,255,255,.06)}
+.vc-mini::before{content:'';position:absolute;width:190px;height:190px;right:-70px;top:-110px;border-radius:50%;background:radial-gradient(circle,rgba(58,134,255,.40),transparent 68%);pointer-events:none}
+.vc-mini::after{content:'';position:absolute;width:150px;height:150px;left:-60px;bottom:-110px;border-radius:50%;background:radial-gradient(circle,rgba(131,56,236,.35),transparent 68%);pointer-events:none}
+.vc-mini-l{font-size:11px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;color:#8A9AA9;position:relative}
+.vc-mini-l b{color:#3A86FF;letter-spacing:.4px}
+.vc-mini-v{font-size:25px;font-weight:800;margin-top:5px;position:relative}
+.vc-mini-v span{font-size:12px;color:#00FFAA;font-weight:800;letter-spacing:1px}
+.vc-mini-s{font-size:11.5px;color:#8A9AA9;margin-top:4px;position:relative}
+.vc-mini-go{position:absolute;right:16px;bottom:14px;font-size:12px;font-weight:700;color:#7fb6ff;z-index:2}
+
+.vc-wrap{padding:6px 0 30px}
+.vc-scene{width:min(340px,calc(100vw - 42px));aspect-ratio:340/215;margin:20px auto 6px;perspective:1200px;animation:vcfloat 5s ease-in-out infinite}
+@keyframes vcfloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+.vc-card{position:relative;width:100%;height:100%;transform-style:preserve-3d;transition:transform .9s cubic-bezier(.19,1,.22,1);cursor:pointer}
+.vc-card.flip{transform:rotateY(180deg) rotateX(4deg)}
+.vc-face{position:absolute;inset:0;border-radius:22px;overflow:hidden;backface-visibility:hidden;-webkit-backface-visibility:hidden;
+  background:linear-gradient(135deg,#1A2433 0%,#0E1621 100%);border:1px solid rgba(255,255,255,.08);
+  box-shadow:0 25px 50px rgba(0,0,0,.75),0 0 40px rgba(58,134,255,.16),inset 0 0 0 1px rgba(255,255,255,.05)}
+.vc-face::after{content:'';position:absolute;top:0;left:-110%;width:50%;height:100%;transform:skewX(-25deg);
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.09),transparent);animation:vcshine 6s infinite}
+@keyframes vcshine{0%{left:-110%}22%{left:210%}100%{left:210%}}
+.vc-front{display:flex;flex-direction:column;padding:16px 18px 14px}
+.vc-back{transform:rotateY(180deg);display:flex;flex-direction:column}
+.vc-top{display:flex;justify-content:space-between;align-items:flex-start}
+.vc-logo{font-size:18px;font-weight:900;letter-spacing:.4px}
+.vc-logo span{color:#3A86FF;text-shadow:0 0 15px rgba(58,134,255,.65)}
+.vc-nfc{width:23px;height:23px;border:2px solid #8A9AA9;border-radius:50%;display:flex;justify-content:center;align-items:center;transform:rotate(-45deg);opacity:.85}
+.vc-nfc::after{content:'';width:11px;height:11px;border:2px solid #8A9AA9;border-radius:50%;border-right-color:transparent;border-bottom-color:transparent}
+.vc-lab{font-size:9px;color:#8A9AA9;text-transform:uppercase;letter-spacing:1.2px}
+.vc-bal{margin-top:7px}
+.vc-amt{font-size:clamp(22px,6.2vw,27px);font-weight:800;margin-top:1px;text-shadow:0 0 16px rgba(255,255,255,.16);white-space:nowrap}
+.vc-amt span{font-size:11.5px;color:#00FFAA;font-weight:800;letter-spacing:1px}
+.vc-chip{width:44px;height:33px;border-radius:7px;margin-top:9px;position:relative;
+  background:linear-gradient(135deg,#FFD700 0%,#D4AF37 50%,#B8860B 100%);box-shadow:0 4px 10px rgba(0,0,0,.55),inset 0 1px 2px rgba(255,255,255,.75)}
+.vc-chip::before{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:60%;height:60%;border:1px solid rgba(0,0,0,.3);border-radius:4px}
+.vc-chip::after{content:'';position:absolute;top:0;left:50%;width:1px;height:100%;background:rgba(0,0,0,.2);box-shadow:5px 0 0 rgba(0,0,0,.2),-5px 0 0 rgba(0,0,0,.2)}
+.vc-num{font-size:clamp(15px,4.4vw,19px);letter-spacing:2.2px;margin-top:9px;text-shadow:0 2px 5px rgba(0,0,0,.7);white-space:nowrap}
+.vc-bottom{display:flex;justify-content:space-between;align-items:flex-end;margin-top:auto}
+.vc-holder{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#3A86FF;text-shadow:0 0 10px rgba(58,134,255,.5);max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vc-exp{font-size:13px;font-weight:700}
+.vc-mag{width:100%;height:50px;background:#000;margin-top:26px;box-shadow:inset 0 5px 10px rgba(0,0,0,.8)}
+.vc-sig{margin:18px 22px;height:40px;display:flex;justify-content:flex-end;align-items:center;padding-right:12px;border-radius:6px;
+  background:repeating-linear-gradient(45deg,#2A3A4E,#2A3A4E 10px,#1C2533 10px,#1C2533 20px);border:1px solid rgba(255,255,255,.1)}
+.vc-cvv{background:#fff;color:#000;padding:4px 10px;border-radius:4px;font-weight:900;font-style:italic;font-size:14px}
+.vc-qr{width:46px;height:46px;background:#fff;padding:3px;border-radius:7px;display:grid;grid-template-columns:repeat(5,1fr);grid-template-rows:repeat(5,1fr);gap:1px}
+.vc-qr i{background:#000;border-radius:1px}
+.vc-qr i:nth-child(even){background:transparent}
+.vc-backb{margin:0 22px 18px;display:flex;justify-content:space-between;align-items:flex-end;margin-top:auto}
+.vc-bnick{text-align:right}
+.vc-bnick span{display:block;color:#3A86FF;font-weight:800;font-size:15px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vc-bnick small{color:#8A9AA9;font-size:9px;letter-spacing:1px;text-transform:uppercase}
+.vc-acts{display:flex;justify-content:center;gap:24px;margin:12px 0 16px}
+.vc-acts button{display:flex;flex-direction:column;align-items:center;gap:5px;background:transparent;color:#fff;font-size:11px;font-weight:600}
+.vc-acts button i{width:54px;height:54px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-size:22px;background:#1A2433;border:1px solid rgba(255,255,255,.1);box-shadow:0 10px 20px rgba(0,0,0,.45);transition:.25s}
+.vc-acts button:active i{background:#3A86FF;transform:translateY(-4px);box-shadow:0 14px 24px rgba(58,134,255,.38)}
+.vc-note{padding:0 18px 20px;font-size:12px;line-height:1.55;color:var(--muted);text-align:center}
+.vc-tx{display:flex;align-items:center;gap:11px;padding:11px 14px;border-bottom:1px solid var(--line)}
+.vc-tx:last-child{border-bottom:0}
+.vc-tx i{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-size:15px;background:rgba(255,255,255,.06);flex-shrink:0}
+.vc-tx .tx-m{flex:1;min-width:0}
+.vc-tx .tx-t{font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vc-tx .tx-d{font-size:11px;color:var(--muted);margin-top:1px}
+.vc-tx .tx-a{font-size:13.5px;font-weight:800;white-space:nowrap}
+.vc-tx .tx-a.up{color:#00d68f}.vc-tx .tx-a.dn{color:#ff6b7a}
+
+/* ---------- shop ---------- */
+.sh-tabs{display:flex;gap:8px;padding:12px 12px 4px;position:sticky;top:0;z-index:3;background:var(--bg)}
+.sh-tab{flex:1;padding:10px 8px;border-radius:12px;background:rgba(255,255,255,.04);color:var(--muted);font-size:13px;font-weight:700;transition:.2s}
+.sh-tab.on{background:#3A86FF;color:#fff;box-shadow:0 6px 16px rgba(58,134,255,.35)}
+.sh-bal{margin:10px 12px 2px;border-radius:16px;padding:12px 15px;display:flex;align-items:center;gap:10px;
+  background:linear-gradient(120deg,rgba(58,134,255,.16),rgba(131,56,236,.12));border:1px solid rgba(58,134,255,.22)}
+.sh-bal b{font-size:18px}.sh-bal small{color:#8A9AA9;font-size:11.5px}.sh-bal button{margin-left:auto;font-size:12px;font-weight:700;color:#8fb9ff;background:rgba(58,134,255,.14);padding:7px 11px;border-radius:10px}
+.sh-item{display:flex;align-items:center;gap:12px;padding:13px 14px;margin:9px 12px;border-radius:17px;
+  background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.06)}
+.sh-ico{width:44px;height:44px;border-radius:13px;display:grid;place-items:center;font-size:21px;background:rgba(0,0,0,.32);flex-shrink:0}
+.sh-m{flex:1;min-width:0}
+.sh-t{font-size:14px;font-weight:700}
+.sh-d{font-size:11.5px;color:var(--muted);margin-top:2px;line-height:1.35}
+.sh-p{font-size:14px;font-weight:800;color:#00FFAA;white-space:nowrap}
+.sh-buy{margin-left:6px;background:#fff;color:#000;font-size:12px;font-weight:800;padding:8px 12px;border-radius:10px;white-space:nowrap}
+.sh-asset{margin:9px 12px;padding:13px 14px;border-radius:16px;background:rgba(58,134,255,.06);border:1px solid rgba(58,134,255,.2)}
+.sh-asset h4{font-size:14.5px;color:#7fb6ff;font-weight:800;letter-spacing:.4px}
+.sh-asset p{font-size:11.5px;color:var(--muted);margin-top:3px}
+.sh-asset .row{display:flex;gap:8px;margin-top:9px;flex-wrap:wrap}
+.sh-asset .row button{font-size:11.5px;font-weight:700;padding:6px 10px;border-radius:9px;background:rgba(58,134,255,.18);color:#a9c9ff}
+.sh-asset .row button.danger{background:rgba(239,83,80,.14);color:#ff8b88}
+.sh-empty{margin:14px 16px;color:var(--muted);font-size:13px;line-height:1.5}
+.sh-field{margin:10px 12px}
+.sh-field label{display:block;font-size:11px;color:var(--muted);margin:0 0 5px 3px}
+.sh-field input{width:100%;padding:12px;border-radius:12px;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.1);color:#fff;font-size:14px;outline:none}
+.sh-sub{margin:12px;width:calc(100% - 24px);padding:13px;border-radius:13px;font-weight:800;font-size:14px;background:linear-gradient(135deg,#00FFAA,#00b377);color:#000}
+.sh-head{padding:6px 16px 0;font-size:16px;font-weight:800}
+.dr-bal{margin:10px 0 4px;padding:9px 12px;border-radius:12px;background:rgba(58,134,255,.12);border:1px solid rgba(58,134,255,.22);font-size:12.5px;color:#9fc4ff;display:flex;justify-content:space-between;align-items:center}
+.dr-bal b{font-size:13px;color:#fff}
+
+/* ---------- online ---------- */
+.on-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#4cc15f;margin-right:5px;vertical-align:1px;box-shadow:0 0 0 3px rgba(76,193,95,.16)}
+
 </style>
 <script>
 /* Проверка кода идёт через сервер этого приложения (Render).
@@ -1544,7 +2318,10 @@ function botReq(){
 function botCheck(code, ok, fail){
   fetch(apiUrl('/check'), { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ phone: fullPhone(), code }) })
     .then(r => r.json())
-    .then(d => (d && d.ok) ? ok() : fail())
+    .then(d => {
+      if(d && d.ok){ if(d.peopleToken) setDirToken(d.peopleToken); ok(d); }
+      else fail();
+    })
     .catch(() => { toast('Сервер недоступен, попробуйте ещё раз'); fail(); });
 }
 function flagAdmin(){

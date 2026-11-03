@@ -1,5 +1,8 @@
 node_modules
 vopgram.json
+purchases.json
+people.json
+online.json
 vopgram.db
 vopgram.db-shm
 vopgram.db-wal
