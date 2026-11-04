@@ -262,6 +262,7 @@ const upload = multer({
   },
 });
 app.use('/uploads', express.static(uploadDir));
+app.use('/gifts', express.static(path.join(__dirname, 'public', 'gifts'), { maxAge: '30d', immutable: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 function authMiddleware(req, res, next) {
