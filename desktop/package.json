@@ -1,0 +1,51 @@
+{
+  "name": "vopgram-desktop",
+  "productName": "Vopgram",
+  "version": "1.4.0",
+  "description": "Vopgram messenger for Windows",
+  "main": "main.js",
+  "author": "Vopgram",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-packager . Vopgram --platform=win32 --arch=x64 --out=dist --overwrite --asar --app-version=1.4.0",
+    "exe": "electron-builder --win portable"
+  },
+  "devDependencies": {
+    "@electron/packager": "^20.3.0",
+    "electron": "^45.2.3",
+    "electron-builder": "^26.18.0",
+    "png-to-ico": "^3.0.2"
+  },
+  "build": {
+    "appId": "com.vopgram.desktop",
+    "productName": "Vopgram",
+    "asar": true,
+    "compression": "normal",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "web/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "portable": {
+      "artifactName": "Vopgram-${version}.exe"
+    }
+  }
+}

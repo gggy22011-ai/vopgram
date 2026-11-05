@@ -3,6 +3,7 @@ vopgram.json
 purchases.json
 people.json
 online.json
+accounts.json
 vopgram.db
 vopgram.db-shm
 vopgram.db-wal
@@ -10,3 +11,4 @@ vopgram.db-wal
 uploads
 android
 .git
+desktop

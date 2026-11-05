@@ -4,11 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="theme-color" content="#1d1d1f">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js"></script>
-<script src="/gifts-official.js"></script>
-<link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
-<link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png">
-<link rel="apple-touch-icon" href="/icon-192.png">
+<script src="lottie.min.js"></script>
+<script src="pako.min.js"></script>
+<script src="gifts-official.js"></script>
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+<link rel="apple-touch-icon" href="icon-192.png">
 <title>Vopgram</title>
 <style>
 :root{
@@ -449,6 +450,20 @@ const ICON = {
 const ico = (n,c) => `<div class="si" style="background:${c}"><svg viewBox="0 0 24 24">${ICON[n]}</svg></div>`;
 const QR = '<svg class="qr" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M21 14v.01M14 21h3M21 17v4"/></svg>';
 
+/* base URL for API and gift assets: remote on APK/EXE, same-origin on the site */
+const SRV_ORIGIN = 'https://vopgram.onrender.com';
+const IS_BUNDLED = location.protocol === 'https:' && location.hostname === 'localhost' && !location.port;
+const IS_NATIVE = (() => {
+  try {
+    if (window.VOP_DESKTOP) return true;
+    if (window.Capacitor && (window.Capacitor.isNativePlatform ? window.Capacitor.isNativePlatform() : window.Capacitor.platform)) return true;
+  } catch(e) {}
+  if (location.protocol === 'file:') return true;
+  return IS_BUNDLED;
+})();
+const IS_DESKTOP = !!window.VOP_DESKTOP;
+const remoteUrl = p => (IS_NATIVE ? SRV_ORIGIN : '') + p;
+
 /* ---------- логотип Vopgram (V-монограмма) ---------- */
 function vMark(size = 112, radius = null){
   const r = radius == null ? Math.round(size * 0.27) : radius;
@@ -548,9 +563,9 @@ const REPLIES = {
 };
 const gById = id => id===PEPE_ID ? PEPE_G : (GIFTS.find(g => g.id === id) || RARE_G.find(g => g.id === id) || LEGACY_GIFTS.find(g => g.id === id) || {id, n:'Удалённый подарок', p:0, sup:1});
 const ADM_KEY='vopgram_admin_v1', BOT_ID='bot';
-let ADM={pin:'7533',custom:[],ov:{},cmds:[],welcome:'',tg:{token:'',on:false,offset:0,auto:true}};
+let ADM={pin:'6786',custom:[],ov:{},cmds:[],welcome:'',tg:{token:'',on:false,offset:0,auto:true}};
 try{ Object.assign(ADM, JSON.parse(localStorage.getItem(ADM_KEY))||{}); }catch(e){}
-if(!ADM.pin||ADM.pin==='0000'||ADM.pin==='6786') ADM.pin='7533';
+if(!ADM.pin||ADM.pin==='0000'||ADM.pin==='7533') ADM.pin='6786';
 const saveAdm=()=>{ try{localStorage.setItem(ADM_KEY,JSON.stringify(ADM));}catch(e){} };
 ADM.custom.forEach(g=>GIFTS.push(g)); GIFTS.forEach(g=>{ const o=ADM.ov[g.id]; if(o) Object.assign(g,o); });
 
@@ -620,12 +635,12 @@ async function serverLogin(pw){
   return d.token;
 }
 function adminGate(){
-  formSheet('Админ-панель', [{label:'Пароль', type:'password', ph:'7533'}], async v => {
+  formSheet('Админ-панель', [{label:'Пароль', type:'password', ph:'6786'}], async v => {
     const pw = (v[0] || '').trim();
-    if(pw !== ADM.pin && pw !== '7533'){ toast('Неверный пароль'); return; }
+    if(pw !== ADM.pin && pw !== '6786'){ toast('Неверный пароль'); return; }
     openAdmin();
     try{ await serverLogin(pw); toast('Сервер подключён'); openAdmin(); }
-    catch(e){ if(pw !== '7533') toast('Локальный режим'); }
+    catch(e){ if(pw !== '6786') toast('Локальный режим'); }
   }, 'Войти');
 }
 function openAdmin(){
@@ -650,7 +665,7 @@ function openAdmin(){
     </div>
     <div class="section">Сервер Vopgram</div>
     <div class="scard">
-      ${token ? R('shield','#2AABEE','Статистика сервера','Пользователи, чаты, сообщения, номера','sa_stats') : R('lock','#f5b301','Подключить сервер','Пароль администратора 7533','sa_login')}
+      ${token ? R('shield','#2AABEE','Статистика сервера','Пользователи, чаты, сообщения, номера','sa_stats') : R('lock','#f5b301','Подключить сервер','Пароль администратора 6786','sa_login')}
       ${R('user','#4cc15f','Пользователи сервера','Аккаунты, баланс, верификация','sa_users')}
       ${R('lock','#7e57e6','Выдать номер','+39 или +888 · код для входа','sa_issue')}
       ${R('starO','#f59e0b','Покупки в боте','Major, галочки и номера +888','sa_purchases')}
@@ -859,7 +874,45 @@ function tgAdmin(){
 /* ---------- аккаунты и состояние ---------- */
 let ACCS = {}, PHONE = null, S = null;
 try { ACCS = JSON.parse(localStorage.getItem(ACC_KEY)) || {}; } catch(e){}
-const save = () => { if(!PHONE) return; ACCS[PHONE] = S; try{ localStorage.setItem(ACC_KEY, JSON.stringify(ACCS)); }catch(e){} };
+let cloudReady = false, cloudTimer = null, cloudBusy = false;
+function cloudState(){
+  const st = JSON.parse(JSON.stringify(S));
+  st.updated = st.updated || Date.now();
+  if(Array.isArray(st.chats)) st.chats.forEach(c => {
+    if(Array.isArray(c.messages) && c.messages.length > 250) c.messages = c.messages.slice(-250);
+  });
+  let raw = '';
+  try { raw = JSON.stringify(st); } catch(e){ return null; }
+  if(raw.length > 230 * 1024){
+    st.chats.forEach(c => { if(Array.isArray(c.messages) && c.messages.length > 60) c.messages = c.messages.slice(-60); });
+    try { raw = JSON.stringify(st); } catch(e){ return null; }
+  }
+  if(raw.length > 230 * 1024){ st.market = []; st.listings = []; try { raw = JSON.stringify(st); } catch(e){ return null; } }
+  return raw.length > 230 * 1024 ? null : st;
+}
+async function cloudSave(){
+  if(!cloudReady || cloudBusy || !PHONE || !S || !S.me || !dirToken()) return;
+  const state = cloudState(); if(!state) return;
+  cloudBusy = true;
+  try{
+    const r = await fetch(srvUrl('/api/account/save'), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone: S.me.phone, token: dirToken(), state }),
+    });
+    if(r.status === 403) cloudReady = false;
+    else if(r.ok){
+      const d = await r.json().catch(() => null);
+      if(d && d.updated && S) S.updated = d.updated;
+    }
+  }catch(e){}
+  cloudBusy = false;
+}
+function cloudSaveSoon(){
+  if(!cloudReady || !PHONE || !S || !S.me || !dirToken()) return;
+  clearTimeout(cloudTimer);
+  cloudTimer = setTimeout(cloudSave, 1600);
+}
+const save = () => { if(!PHONE) return; S.updated = Date.now(); window.__lastLocalSave = Date.now(); ACCS[PHONE] = S; try{ localStorage.setItem(ACC_KEY, JSON.stringify(ACCS)); }catch(e){} cloudSaveSoon(); };
 
 function mkNft(g){ return {num:rnd(1,g.sup), m:wpick(MODELS), b:wpick(BACKDROPS), s:wpick(SYMBOLS)}; }
 function mkMarket(){
@@ -871,7 +924,7 @@ function fresh(profile){
   const m = (out,text,ago) => ({id:uid(),out,text,ts:now-ago,read:true});
   const left = {}; GIFTS.forEach(g => left[g.id] = Math.floor(g.sup*(.3+Math.random()*.5))); left[PEPE_ID] = 10;
   return {
-    me:profile, listings:[], premium:0, balance:0, gifts:[], equipped:null, left, theme:0,
+    me:profile, listings:[], premium:0, balance:0, gifts:[], equipped:null, left, theme:0, updated:now,
     wallet:12450.80, walletTx:[{ t:'Бонус за регистрацию', a:12450.80, ts:now }], walletNumbers:[], walletListings:[], onlineSeq:0,
     prefs:{sound:true,preview:true,badge:true,showBday:true,anim:true}, market:Array.from({length:8},mkMarket), bdayYear:0,
     chats:[
@@ -996,16 +1049,25 @@ function pepeAdmin(){
 
 
 /* ---------- официальные NFT-подарки: Lottie ---------- */
-const GIFT_ASSET_BASE = location.protocol === 'file:' ? 'https://vopgram.onrender.com' : '';
+const GIFT_ASSET_BASE = IS_NATIVE && !IS_BUNDLED && !IS_DESKTOP ? SRV_ORIGIN + '/' : '';
 const GTXT = {}, GLIVE = new Set(), GPLAY = new Set(), GQ = [];
 let GBUSY = false;
+async function gunzipText(buf){
+  if('DecompressionStream' in window){
+    try{
+      return await new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'))).text();
+    }catch(e){}
+  }
+  if(window.pako && pako.ungzip){
+    return new TextDecoder('utf-8').decode(pako.ungzip(new Uint8Array(buf)));
+  }
+  throw new Error('no decompression');
+}
 const giftJson = gid => GTXT[gid] || (GTXT[gid] = (async () => {
-  const r = await fetch(GIFT_ASSET_BASE + '/gifts/' + encodeURIComponent(gid) + '.bin?v=1', {cache:'force-cache'});
+  const r = await fetch(GIFT_ASSET_BASE + 'gifts/' + encodeURIComponent(gid) + '.bin?v=1', {cache:'force-cache'});
   if(!r.ok) throw new Error('gift '+gid);
   const buf = await r.arrayBuffer();
-  if(!('DecompressionStream' in window)) throw new Error('no decompression');
-  const text = await new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'))).text();
-  return JSON.parse(text);
+  return JSON.parse(await gunzipText(buf));
 })());
 (() => {
   const stop = el => { GPLAY.delete(el); try{ el._lt && el._lt.pause(); }catch(e){} };
@@ -1096,7 +1158,7 @@ const closeDrawer = () => $('#drawerWrap').classList.remove('open');
 const maskPhone = p => { const d = String(p||'').replace(/\D/g,''); return d.length < 6 ? String(p||'') : '+' + d.slice(0,2) + ' ••• ' + d.slice(-2); };
 
 /* ---------- люди Vopgram (серверный каталог) ---------- */
-const srvUrl = p => (location.protocol === 'file:' ? 'https://vopgram.onrender.com' : '') + p;
+const srvUrl = p => remoteUrl(p);
 const digitsOf = p => String(p || '').replace(/\D/g, '');
 function dirToken(){ try{ return localStorage.getItem('VOP_DIR_TOKEN') || ''; }catch(e){ return ''; } }
 function setDirToken(t){ try{ if(t) localStorage.setItem('VOP_DIR_TOKEN', t); }catch(e){} }
@@ -1679,7 +1741,7 @@ function settingAction(a){
     ask:()=>openChat(BOT_ID), faq:openFaq, policy:openPolicy, anon:()=>toast('Анонимный номер +888 привязан к вашему аккаунту'), premium:openPremium, admin:adminGate, logout:logoutFlow
   }[a] || soon)();
 }
-function logoutFlow(){ optionsSheet('Выйти из аккаунта?', [{html:'Выйти', danger:true, fn:()=>{ try{localStorage.removeItem(SES_KEY);}catch(e){} clearInterval(onlineTimer); onlineStarted=false; PHONE=null; S=null; $('#subView').classList.remove('open'); $('#chatView').classList.remove('open'); startAuth(); }}], 'Данные сохранятся на этом устройстве. Вы сможете войти снова по номеру телефона.'); }
+function logoutFlow(){ optionsSheet('Выйти из аккаунта?', [{html:'Выйти', danger:true, fn:()=>{ try{localStorage.removeItem(SES_KEY);}catch(e){} clearInterval(onlineTimer); clearInterval(cloudPollTimer); cloudReady=false; onlineStarted=false; PHONE=null; S=null; $('#subView').classList.remove('open'); $('#chatView').classList.remove('open'); startAuth(); }}], 'Данные сохранятся на этом устройстве. Вы сможете войти снова по номеру телефона.'); }
 
 function openSub(title, html, bind){ delete $('#subTitle').dataset.up; $('#subTitle').textContent = title; $('#subBody').innerHTML = html; $('#subView').classList.add('open'); bind && bind($('#subBody')); }
 $('#subBack').onclick = () => $('#subView').classList.remove('open');
@@ -1809,6 +1871,7 @@ function loginAs(ph){
   if(!Array.isArray(S.walletNumbers)) S.walletNumbers=[];
   if(!Array.isArray(S.walletListings)) S.walletListings=[];
   if(S.onlineSeq==null) S.onlineSeq=0;
+  if(S.updated==null) S.updated=0;
   if(!S.migr1){ S.migr1=1; S.chats=S.chats.filter(c=>!['anna','max','mom','dima'].includes(c.id)); }
   GIFTS.forEach(g => { if(S.left[g.id]==null) S.left[g.id] = Math.floor(g.sup*(.3+Math.random()*.5)); }); if(S.left[PEPE_ID]==null) S.left[PEPE_ID]=10;
   try{ localStorage.setItem(SES_KEY, PHONE); }catch(e){}
@@ -1819,8 +1882,62 @@ function startApp(isNew){
   applyTheme(); ensureBot(); renderAll(); switchTab('chats');
   syncDirectory();
   onlineBoot();
+  cloudSyncStart(isNew);
   if(isNew) setTimeout(()=>toast(`Добро пожаловать, ${S.me.name}!`), 400);
   checkBirthday();
+}
+function applyCloudState(d, announce){
+  if(!d || !d.state || !d.state.me) return false;
+  S = d.state;
+  if(!S.prefs) S.prefs = {sound:true,preview:true,badge:true,showBday:true,anim:true};
+  if(!Array.isArray(S.chats)) S.chats = [];
+  if(!Array.isArray(S.gifts)) S.gifts = [];
+  if(!S.left) S.left = {};
+  if(!Array.isArray(S.listings)) S.listings = [];
+  if(!Array.isArray(S.market)) S.market = [];
+  if(!Array.isArray(S.walletTx)) S.walletTx = [];
+  if(!Array.isArray(S.walletNumbers)) S.walletNumbers = [];
+  if(!Array.isArray(S.walletListings)) S.walletListings = [];
+  if(S.premium == null) S.premium = 0;
+  if(S.wallet == null) S.wallet = 12450.80;
+  if(S.onlineSeq == null) S.onlineSeq = 0;
+  S.updated = d.updated || Date.now();
+  ACCS[PHONE] = S;
+  try{ localStorage.setItem(ACC_KEY, JSON.stringify(ACCS)); }catch(e){}
+  renderAll(); applyTheme(); onlineBoot();
+  if(announce) toast('Аккаунт синхронизирован с облаком');
+  return true;
+}
+let cloudPollTimer = null;
+async function cloudPull(){
+  if(!cloudReady || !PHONE || !S || !S.me || !dirToken() || cloudBusy) return;
+  if(Date.now() - (window.__lastLocalSave || 0) < 8000) return;
+  try{
+    const r = await fetch(srvUrl('/api/account/load?phone=' + encodeURIComponent(S.me.phone) + '&token=' + encodeURIComponent(dirToken())));
+    if(!r.ok) return;
+    const d = await r.json();
+    if(d && d.state && d.state.me && (d.updated || 0) > (S.updated || 0) + 1500) applyCloudState(d, false);
+  }catch(e){}
+}
+async function cloudSyncStart(preferRemote){
+  cloudReady = false;
+  clearTimeout(cloudTimer);
+  clearInterval(cloudPollTimer);
+  if(!S || !S.me || !dirToken()){ cloudReady = true; return; }
+  const localUpd = S.updated || 0;
+  let loaded = false;
+  try{
+    const r = await fetch(srvUrl('/api/account/load?phone=' + encodeURIComponent(S.me.phone) + '&token=' + encodeURIComponent(dirToken())));
+    if(r.ok){
+      const d = await r.json();
+      if(d && d.state && d.state.me && (preferRemote || (d.updated || 0) > localUpd + 1500)){
+        loaded = applyCloudState(d, true);
+      }
+    }
+  }catch(e){}
+  cloudReady = true;
+  cloudPollTimer = setInterval(cloudPull, 15000);
+  if(!loaded) cloudSaveSoon();
 }
 function checkBirthday(){
   const bd = S.me.birthday; if(!bd) return;
@@ -2585,20 +2702,36 @@ nav button.active::before{width:32px;height:3px;background:linear-gradient(90deg
 <script>
 /* Проверка кода идёт через сервер этого приложения (Render).
    Код выдаёт бот @Vopgrambot. */
-const BOT_AUTH_URL = location.protocol === 'file:' ? 'https://vopgram.onrender.com' : '';
+const BOT_AUTH_URL = IS_NATIVE ? SRV_ORIGIN : '';
 const LOGIN_CODES = [];
 const apiUrl = p => (BOT_AUTH_URL || '') + p;
+async function apiFetch(path, opts){
+  let lastErr;
+  for(let attempt = 0; attempt < 2; attempt++){
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 30000);
+    try{
+      return await fetch(apiUrl(path), Object.assign({}, opts || {}, { signal: ctl.signal }));
+    }catch(e){
+      lastErr = e;
+      if(attempt === 0) await new Promise(r => setTimeout(r, 1500));
+    }finally{
+      clearTimeout(timer);
+    }
+  }
+  throw lastErr;
+}
 function botReq(){
-  fetch(apiUrl('/request'), { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ phone: fullPhone() }) })
+  apiFetch('/request', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ phone: fullPhone() }) })
     .then(r => r.json())
     .then(d => {
       if(d && d.ok && d.sent) toast('Код отправлен в бота @Vopgrambot');
       else toast('Код приходит в бота @Vopgrambot — напишите /start');
     })
-    .catch(() => toast('Код приходит в бота @Vopgrambot'));
+    .catch(() => toast('Сервер просыпается. Напишите /start в @Vopgrambot и попробуйте ещё раз'));
 }
 function botCheck(code, ok, fail){
-  fetch(apiUrl('/check'), { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ phone: fullPhone(), code }) })
+  apiFetch('/check', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ phone: fullPhone(), code }) })
     .then(r => r.json())
     .then(d => {
       if(d && d.ok){ if(d.peopleToken) setDirToken(d.peopleToken); ok(d); }

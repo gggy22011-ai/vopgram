@@ -14,13 +14,14 @@ const db = require('./db');
 const JWT_SECRET = process.env.JWT_SECRET || 'vopgram-dev-secret-change-me';
 const PORT = process.env.PORT || 3000;
 const BOT_TOKEN = process.env.BOT_TOKEN || '';
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '7533';
+const ADMIN_PASSWORD = '6786';
 const ADMIN_SECRET = process.env.ADMIN_TOKEN_SECRET || 'vopgram-admin-secret';
 
 /* ---------- purchases / people directory (small JSON stores) ---------- */
 const PURCHASES_FILE = path.join(__dirname, 'purchases.json');
 const PEOPLE_FILE = path.join(__dirname, 'people.json');
 const ONLINE_FILE = path.join(__dirname, 'online.json');
+const ACCOUNTS_FILE = path.join(__dirname, 'accounts.json');
 
 function loadJson(file, fallback) {
   try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch (e) { return fallback; }
@@ -36,6 +37,9 @@ purchases.numbers = purchases.numbers || [];
 const people = loadJson(PEOPLE_FILE, { users: [] });
 people.users = people.users || [];
 
+const accounts = loadJson(ACCOUNTS_FILE, { users: {} });
+accounts.users = accounts.users && typeof accounts.users === 'object' ? accounts.users : {};
+
 const online = loadJson(ONLINE_FILE, { users: {}, messages: [], seq: 0 });
 online.users = online.users && typeof online.users === 'object' ? online.users : {};
 online.messages = Array.isArray(online.messages) ? online.messages : [];
@@ -48,7 +52,11 @@ function saveOnline(force) {
   saveJson(ONLINE_FILE, online);
 }
 
-const SHOP_PRICE = Math.max(1, parseInt(process.env.SHOP_PRICE || '40', 10) || 40);
+const SHOP_PRICES = {
+  verify: Math.max(1, parseInt(process.env.SHOP_PRICE_VERIFY || '25', 10) || 25),
+  major: Math.max(1, parseInt(process.env.SHOP_PRICE_MAJOR || '45', 10) || 45),
+  num888: Math.max(1, parseInt(process.env.SHOP_PRICE_NUM888 || '70', 10) || 70),
+};
 
 function phoneOwner(phone) {
   const n = normPhone(phone);
@@ -77,6 +85,7 @@ function new888(tgId) {
   while (taken(num) || purchases.numbers.some(x => normPhone(x.phone) === normPhone(num)));
   purchases.numbers.push({ phone: num, tgId: String(tgId), at: Date.now() });
   saveJson(PURCHASES_FILE, purchases);
+  try { db.prepare('INSERT INTO anonymous_numbers (phone, telegram_user_id) VALUES (?,?)').run(num, String(tgId)); } catch (e) {}
   return num;
 }
 
@@ -560,6 +569,11 @@ function adminMiddleware(req, res, next) {
   }
 }
 
+app.get('/api/health', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({ ok: true, service: 'vopgram', ts: Date.now(), uptime: Math.round(process.uptime()) });
+});
+
 app.post('/api/admin/login', (req, res) => {
   const { password } = req.body || {};
   const given = Buffer.from(String(password || ''));
@@ -630,7 +644,7 @@ app.get('/api/admin/purchases', adminMiddleware, (req, res) => {
     ...Object.keys(purchases.verified),
     ...purchases.numbers.map(n => String(n.tgId)),
   ]);
-  res.json({ major, verified, numbers888: numbers, buyers: buyers.size, revenueStars: (major + verified + numbers) * SHOP_PRICE });
+  res.json({ major, verified, numbers888: numbers, buyers: buyers.size, revenueStars: major * SHOP_PRICES.major + verified * SHOP_PRICES.verify + numbers * SHOP_PRICES.num888 });
 });
 
 // ---------- Socket.io ----------
@@ -662,7 +676,7 @@ if (BOT_TOKEN && process.env.RENDER) {
     function isAdminChat(id) { return ADMIN_CHAT_IDS.includes(String(id)); }
 
     function issueNumber(chatId) {
-      const existing = db.prepare('SELECT phone FROM anonymous_numbers WHERE telegram_user_id = ?').get(String(chatId));
+      const existing = db.prepare("SELECT phone FROM anonymous_numbers WHERE telegram_user_id = ? AND phone LIKE '+39%'").get(String(chatId));
       let num;
       if (existing) {
         num = existing.phone;
@@ -683,6 +697,32 @@ if (BOT_TOKEN && process.env.RENDER) {
       return code;
     }
 
+    // all numbers owned by this Telegram user (+39 and purchased +888)
+    function userNumbers(chatId) {
+      const id = String(chatId);
+      const list = [];
+      const seen = new Set();
+      const add = phone => {
+        const key = normPhone(phone);
+        if (!key || seen.has(key)) return;
+        seen.add(key);
+        list.push(phone);
+      };
+      try {
+        db.prepare('SELECT phone FROM anonymous_numbers WHERE telegram_user_id = ? ORDER BY id').all(id)
+          .forEach(r => add(r.phone));
+      } catch (e) {}
+      purchases.numbers.filter(x => String(x.tgId) === id).forEach(x => add(x.phone));
+      return list;
+    }
+
+    function numbersText(chatId) {
+      let nums = userNumbers(chatId);
+      if (!nums.length) { const { num } = issueNumber(chatId); nums = [num]; }
+      const lines = nums.map(n => '<code>' + n + '</code> — код <code>' + codeFor(n) + '</code>');
+      return '<b>Ваши номера Vopgram</b>\n\n' + lines.join('\n') + '\n\nВведите номер и код в приложении. Код действует 10 минут.\nНикому не сообщайте код!';
+    }
+
     const SHOP = {
       num888: { title: 'Номер +888', desc: 'Анонимный номер +888 для входа в Vopgram' },
       major: { title: 'Major статус', desc: 'Золотая галочка Major в профиле Vopgram' },
@@ -692,10 +732,8 @@ if (BOT_TOKEN && process.env.RENDER) {
     function mainMenuKeyboard() {
       return {
         inline_keyboard: [
-          [{ text: '📱 Получить номер +39', callback_data: 'get_number' }],
-          [{ text: '🛍 Магазин · ' + SHOP_PRICE + ' ⭐', callback_data: 'shop' }],
-          [{ text: '🌐 Открыть сайт Vopgram', url: process.env.APP_URL || 'http://localhost:3000' }],
-          [{ text: '⚙️ Админ-панель', callback_data: 'admin_panel' }],
+          [{ text: '📱 Мои номера и коды', callback_data: 'my_numbers' }],
+          [{ text: '🛍 Магазин · ' + SHOP_PRICES.verify + '–' + SHOP_PRICES.num888 + ' ⭐', callback_data: 'shop' }],
         ],
       };
     }
@@ -703,12 +741,20 @@ if (BOT_TOKEN && process.env.RENDER) {
     function shopKeyboard() {
       return {
         inline_keyboard: [
-          [{ text: '🏴 Номер +888 · ' + SHOP_PRICE + ' ⭐', callback_data: 'buy_num888' }],
-          [{ text: '👑 Major · ' + SHOP_PRICE + ' ⭐', callback_data: 'buy_major' }],
-          [{ text: '✔️ Галочка · ' + SHOP_PRICE + ' ⭐', callback_data: 'buy_verify' }],
+          [{ text: '✔️ Галочка · ' + SHOP_PRICES.verify + ' ⭐', callback_data: 'buy_verify' }],
+          [{ text: '👑 Major · ' + SHOP_PRICES.major + ' ⭐', callback_data: 'buy_major' }],
+          [{ text: '🏴 Номер +888 · ' + SHOP_PRICES.num888 + ' ⭐', callback_data: 'buy_num888' }],
           [{ text: '⬅️ Назад', callback_data: 'menu' }],
         ],
       };
+    }
+
+    function shopText() {
+      return '🛍 <b>Магазин Vopgram</b>\n\n' +
+        '✔️ Галочка Vopgram — ' + SHOP_PRICES.verify + ' ⭐\n' +
+        '👑 Major — ' + SHOP_PRICES.major + ' ⭐\n' +
+        '🏴 Анонимный номер +888 — ' + SHOP_PRICES.num888 + ' ⭐\n\n' +
+        'Оплата в Telegram Stars. Купленный номер сразу появится в «Мои номера».';
     }
 
     function sendShopInvoice(chatId, kind) {
@@ -721,21 +767,21 @@ if (BOT_TOKEN && process.env.RENDER) {
         'buy:' + kind,
         '',
         'XTR',
-        [{ label: item.title, amount: SHOP_PRICE }]
+        [{ label: item.title, amount: SHOP_PRICES[kind] }]
       ).catch(e => bot.sendMessage(chatId, 'Не удалось выставить счёт: ' + e.message));
     }
 
     bot.onText(/\/start/, (msg) => {
       const chatId = msg.chat.id;
-      const { num, code } = issueNumber(chatId);
-      bot.sendMessage(chatId, '<b>Добро пожаловать в Vopgram!</b>\n\nНомер: <code>' + num + '</code>\nКод: <code>' + code + '</code>\n\nВведите в приложении. Код 10 минут.\n\nНикому не сообщайте код!', {
+      issueNumber(chatId);
+      bot.sendMessage(chatId, '<b>Добро пожаловать в Vopgram!</b>\n\n' + numbersText(chatId), {
         parse_mode: 'HTML',
         reply_markup: mainMenuKeyboard(),
       });
     });
 
     bot.onText(/\/shop/, (msg) => {
-      bot.sendMessage(msg.chat.id, '🛍 <b>Магазин Vopgram</b>\n\nЛюбой товар — ' + SHOP_PRICE + ' ⭐ (Telegram Stars).', {
+      bot.sendMessage(msg.chat.id, shopText(), {
         parse_mode: 'HTML',
         reply_markup: shopKeyboard(),
       });
@@ -749,7 +795,7 @@ if (BOT_TOKEN && process.env.RENDER) {
       const chatId = msg.chat.id;
       const sp = msg.successful_payment || {};
       const kind = String(sp.invoice_payload || '').replace('buy:', '');
-      const stars = sp.total_amount || SHOP_PRICE;
+      const stars = sp.total_amount || SHOP_PRICES[kind] || 0;
       if (kind === 'major') {
         purchases.major[String(chatId)] = true;
         saveJson(PURCHASES_FILE, purchases);
@@ -761,7 +807,7 @@ if (BOT_TOKEN && process.env.RENDER) {
       } else if (kind === 'num888') {
         const num = new888(chatId);
         const code = codeFor(num);
-        bot.sendMessage(chatId, '🏴 <b>Ваш номер +888</b>\n\nНомер: <code>' + num + '</code>\nКод: <code>' + code + '</code>\n\nВведите его в приложении. Код 10 минут.\nСпасибо за покупку (' + stars + ' ⭐).', { parse_mode: 'HTML' });
+        bot.sendMessage(chatId, '🏴 <b>Ваш номер +888</b>\n\nНомер: <code>' + num + '</code>\nКод: <code>' + code + '</code>\n\nНомер сохранён в «Мои номера» — открыть можно в любой момент.\nВведите его в приложении. Код 10 минут.\nСпасибо за покупку (' + stars + ' ⭐).', { parse_mode: 'HTML', reply_markup: mainMenuKeyboard() });
       } else {
         bot.sendMessage(chatId, 'Оплата получена: ' + stars + ' ⭐. Спасибо!');
       }
@@ -770,20 +816,19 @@ if (BOT_TOKEN && process.env.RENDER) {
     bot.on('callback_query', (q) => {
       const chatId = q.message.chat.id;
       const data = q.data;
-      if (data === 'get_number') {
-        const { num, code } = issueNumber(chatId);
-        bot.answerCallbackQuery(q.id, { text: 'Номер выдан' });
-        bot.sendMessage(chatId, 'Номер: <code>' + num + '</code>\nКод: <code>' + code + '</code>', { parse_mode: 'HTML' });
+      if (data === 'get_number' || data === 'my_numbers') {
+        issueNumber(chatId);
+        bot.answerCallbackQuery(q.id, { text: 'Номера и коды отправлены' });
+        bot.sendMessage(chatId, numbersText(chatId), { parse_mode: 'HTML', reply_markup: mainMenuKeyboard() });
       } else if (data === 'shop') {
         bot.answerCallbackQuery(q.id);
-        bot.sendMessage(chatId, '🛍 <b>Магазин Vopgram</b>\n\nЛюбой товар — ' + SHOP_PRICE + ' ⭐ (Telegram Stars).', {
+        bot.sendMessage(chatId, shopText(), {
           parse_mode: 'HTML',
           reply_markup: shopKeyboard(),
         });
       } else if (data === 'menu') {
         bot.answerCallbackQuery(q.id);
-        const { num, code } = issueNumber(chatId);
-        bot.sendMessage(chatId, 'Ваш номер: <code>' + num + '</code>\nКод: <code>' + code + '</code>', { parse_mode: 'HTML', reply_markup: mainMenuKeyboard() });
+        bot.sendMessage(chatId, numbersText(chatId), { parse_mode: 'HTML', reply_markup: mainMenuKeyboard() });
       } else if (data.startsWith('buy_')) {
         bot.answerCallbackQuery(q.id);
         sendShopInvoice(chatId, data.slice(4));
@@ -795,7 +840,8 @@ if (BOT_TOKEN && process.env.RENDER) {
         const maj = Object.keys(purchases.major).length;
         const ver = Object.keys(purchases.verified).length;
         const nums = purchases.numbers.length;
-        bot.sendMessage(chatId, 'Покупки:\nMajor: ' + maj + '\nГалочка: ' + ver + '\nНомера +888: ' + nums);
+        const revenue = maj * SHOP_PRICES.major + ver * SHOP_PRICES.verify + nums * SHOP_PRICES.num888;
+        bot.sendMessage(chatId, 'Покупки:\nMajor: ' + maj + '\nГалочка: ' + ver + '\nНомера +888: ' + nums + '\nВыручка: ' + revenue + ' ⭐');
       } else if (data === 'adm_stats') {
         const users = db.prepare('SELECT COUNT(*) as c FROM users').get().c;
         const chats = db.prepare('SELECT COUNT(*) as c FROM chats').get().c;
@@ -1077,6 +1123,40 @@ app.get('/api/people/search', rateLimit({ name: 'search', windowMs: 60000, max: 
   }
 
   res.json({ people: list.slice(0, 20) });
+});
+
+/* ---------- cloud account sync (site + APK share the same account) ---------- */
+app.get('/api/account/load', rateLimit({ name: 'acc-load', windowMs: 60000, max: 90 }), (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  const phone = normPhone(req.query.phone || '');
+  if (!phone) return res.status(400).json({ error: 'phone required' });
+  if (!onlineTokenOk(phone, String(req.query.token || ''))) return res.status(403).json({ error: 'verification required' });
+  const rec = accounts.users[phone];
+  res.json({ ok: true, state: rec ? rec.state : null, updated: rec ? rec.updated || 0 : 0 });
+});
+
+app.post('/api/account/save', rateLimit({ name: 'acc-save', windowMs: 60000, max: 90 }), (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  const body = req.body || {};
+  const phone = normPhone(body.phone || '');
+  if (!phone) return res.status(400).json({ error: 'phone required' });
+  if (!onlineTokenOk(phone, String(body.token || ''))) return res.status(403).json({ error: 'verification required' });
+  const state = body.state;
+  if (!state || typeof state !== 'object' || Array.isArray(state)) return res.status(400).json({ error: 'bad state' });
+  let raw;
+  try { raw = JSON.stringify(state); } catch (e) { return res.status(400).json({ error: 'bad state' }); }
+  if (raw.length > 240 * 1024) return res.status(413).json({ error: 'state too large' });
+  const prev = accounts.users[phone];
+  if (prev && prev.state) {
+    const normalize = s => {
+      try { const c = Object.assign({}, s); delete c.updated; return JSON.stringify(c); } catch (e) { return ''; }
+    };
+    if (normalize(prev.state) === normalize(state)) return res.json({ ok: true, updated: prev.updated || Date.now() });
+  }
+  const now = Date.now();
+  accounts.users[phone] = { state, updated: now };
+  saveJson(ACCOUNTS_FILE, accounts);
+  res.json({ ok: true, updated: now });
 });
 
 /* ---------- online messaging (real users, REST + polling) ---------- */

@@ -3,10 +3,10 @@
   "appName": "Vopgram",
   "webDir": "public",
   "server": {
-    "url": "https://vopgram.onrender.com",
-    "cleartext": false
+    "androidScheme": "https"
   },
   "android": {
-    "allowMixedContent": false
+    "allowMixedContent": false,
+    "backgroundColor": "#0e1116"
   }
 }

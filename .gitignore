@@ -3,6 +3,7 @@ vopgram.json
 purchases.json
 people.json
 online.json
+accounts.json
 vopgram.db
 vopgram.db-shm
 vopgram.db-wal
@@ -14,3 +15,7 @@ keep-alive.ps1
 start-all.bat
 *.apk
 fix*.js
+
+desktop/node_modules/
+desktop/dist/
+desktop/web/

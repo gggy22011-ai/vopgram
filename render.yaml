@@ -10,6 +10,6 @@ services:
       - key: BOT_TOKEN
         sync: false
       - key: ADMIN_PASSWORD
-        value: "7533"
+        value: "6786"
       - key: APP_URL
         sync: false
